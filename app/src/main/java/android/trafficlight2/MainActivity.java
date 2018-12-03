@@ -7,6 +7,9 @@ import java.io.InputStream;
 import java.util.Calendar;
 import java.util.ArrayList;
 
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
+import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
 import static android.Manifest.permission.*;
 
@@ -38,6 +41,7 @@ import android.os.Looper;
 import android.provider.Settings;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
+import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.text.format.DateFormat;
@@ -65,6 +69,8 @@ import java.util.Timer;
 import java.util.TimerTask;
 import java.util.UUID;
 
+
+import static android.Manifest.permission.*;
 import static android.R.attr.countDown;
 import static android.R.attr.id;
 import static android.R.attr.offset;
@@ -94,8 +100,10 @@ import static android.util.Log.e;
 
 public class MainActivity extends AppCompatActivity implements LocationListener {
 
-
-    static boolean firstRun = true;
+    private static final int REQUEST_EXTERNAL_ACCESS_FINE_LOCATION = 0;
+    private static final int REQUEST_EXTERNAL_ACCESS_COARSE_LOCATION = 0;
+    private static final int REQUEST_EXTERNAL_INTERNET = 0;
+    private static final int REQUEST_EXTERNAL_INTERNET_STATE = 0;
     // Progress Dialog
     private ProgressDialog pDialog;
 
@@ -117,7 +125,6 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     private static final String TAG_ALLRED = "allred";
     private static final String TAG_greentime = "greentime";
     private static final String TAG_CYCLE = "Cycle";
-    private static final String TAG_SEGMENT = "segment";
     private static final String TAG_PLANID = "planID";
     private static final String TAG_OFFSET = "offset";
     private static final String TAG_DIRECTION = "Direction";
@@ -128,13 +135,9 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     JSONArray products = null;
     JSONArray getPhase = null;
     Button btnShowCountdown;
-    Button btnReset;
     private LocationManager locationManager;
     private String provider;
 
-    //定時器
-    private boolean startflag = false;
-    private int light_case = 0;
 
     private ImageView lightColor_img;
     private MediaPlayer mp_20;
@@ -142,9 +145,6 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     private MediaPlayer mp_red;
 
 
-    //gps座標
-    String lat;
-    String lng;
     //從資料庫取得，轉換後的gps座標
 
     //手機gps取得的座標位置
@@ -152,15 +152,12 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
 
     //for getDirection()
     double angle;
-    int direction;
-
 
     String ICID, gICID = "1", phaseID,planID,Direction,phaseOrder; //for 資料庫
     String inputDirection;
 
     int segment, weekday,offset,phaseCount;
 
-    CountDownTimer cc;
 
     String deviceID, icID, icName;
     int green_sec;
@@ -174,12 +171,12 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
 
     int timer_red = 0, timer__yellow = 0, timer_green = 0;
     int countFlag = 0;
-    int threaFlag = 0;
+    int threadFlag = 0;
 
    // public int timeLength;
 
-    static int[] countstatus = {0,0,0,0,0,0};
-    static int countstatusIndex = 0;
+    static int[] countStatus = {0,0,0,0,0,0};
+    static int countStatusIndex = 0;
 
     TextView latituteField;
     TextView longitudeField;
@@ -188,6 +185,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     TextView times;
     TextView TextAngle;
     TextView TextSpeed;
+    TextView countdown_txt;
 
     EditText intersection_input;
     EditText direction_input;
@@ -211,29 +209,13 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     int[][] timeArray = {{0, 1, 6, 7, 8, 8, 11, 12, 13, 16, 17, 18, 21, 22, 23},
                          {0, 0, 0, 0, 15, 45, 45, 30, 15, 00, 00, 45, 00, 15, 00}};
 
-    /*for 藍芽*/ /*
-    private final static int REQUEST_CONNECT_DEVICE = 1;    //宏定义查询设备句柄
+    Position pp;
 
-    private final static String MY_UUID = "00001101-0000-1000-8000-00805F9B34FB";   //SPP服务UUID号
-
-    private InputStream is;    //输入流，用来接收蓝牙数据
-    private TextView dis;       //接收数据显示句柄
-    private String smsg = "";    //显示用数据缓存
-    private String fmsg = "";    //保存用数据缓存
-
-
-    BluetoothDevice _device = null;     //蓝牙设备
-    BluetoothSocket _socket = null;      //蓝牙通信socket
-    boolean _discoveryFinished = false;
-    boolean bRun = true;
-    boolean bThread = false;
-
-    private BluetoothAdapter _bluetooth = BluetoothAdapter.getDefaultAdapter();    //获取本地蓝牙适配器，即蓝牙设备
-*/
-    /*for 藍芽終止*/
 
 
     public void ActiveComponent() {
+        pp = new Position();
+
         intersection_input = (EditText) findViewById(R.id.intersection_input);
         direction_input = (EditText) findViewById(R.id.phaseid_input);
 
@@ -244,11 +226,13 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         times = (TextView) findViewById(R.id.times);
         TextAngle = (TextView) findViewById(R.id.angle);
         TextSpeed = (TextView) findViewById(R.id.Speed);
+        countdown_txt = (TextView) findViewById(R.id.countDown_sec);
 
         lightColor_img = (ImageView) findViewById(lightColor);
         mp_20 = MediaPlayer.create(this, R.raw.count_20);
         mp_10 = MediaPlayer.create(this, R.raw.count_10);
         mp_red = MediaPlayer.create(this, R.raw.intersection_red);
+
 
         G1 = (TextView) findViewById(R.id.G1);
         G2 = (TextView) findViewById(R.id.G2);
@@ -279,7 +263,14 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         HOUR = (TextView) findViewById(R.id.HOUR);
         MIN = (TextView) findViewById(R.id.MIN);
         SEC = (TextView) findViewById(R.id.SEC);
+    }
 
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        switch(requestCode) {
+            case REQUEST_EXTERNAL_INTERNET:
+
+        }
     }
 
     @Override
@@ -288,37 +279,36 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        TextView interSection_txt = (TextView) findViewById(R.id.interSection_Name);
+        ActiveComponent(); //宣告所有元件
 
-        ActiveComponent();
+        int permission_fineLocation = ActivityCompat.checkSelfPermission(this,Manifest.permission.ACCESS_FINE_LOCATION);
+        int permission_coarseLocation  = ActivityCompat.checkSelfPermission(this,Manifest.permission.ACCESS_COARSE_LOCATION);
+        int permission_Network  = ActivityCompat.checkSelfPermission(this,Manifest.permission.INTERNET);
+        int permission_NetworkState  = ActivityCompat.checkSelfPermission(this,Manifest.permission.ACCESS_NETWORK_STATE);
 
-        //aa = new count();
-        /*for 藍芽*/
-        /*
-        dis = (TextView) findViewById(R.id.in);      //得到数据显示句柄
+        if (permission_Network != PackageManager.PERMISSION_GRANTED ) {
+            ActivityCompat.requestPermissions(this, new String[] {INTERNET},REQUEST_EXTERNAL_INTERNET);
+        } else {
 
-
-        //如果打开本地蓝牙设备不成功，提示信息，结束程序
-        if (_bluetooth == null) {
-            Toast.makeText(this, "無法打開藍芽，請檢查手機是否有藍芽功能", Toast.LENGTH_LONG).show();
-            finish();
-            return;
         }
 
-        // 设置设备可以被搜索
-        new Thread() {
-            public void run() {
-                if (_bluetooth.isEnabled() == false) {
-                    _bluetooth.enable();
-                }
-            }
-        }.start();
-        */
-        /*for 藍芽*/
+        if (permission_NetworkState != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, new String[] {ACCESS_NETWORK_STATE},REQUEST_EXTERNAL_INTERNET_STATE);
+        } else {
 
+        }
 
         btnShowCountdown = (Button) findViewById(location);
-        //btnReset = (Button) findViewById(R.id.reset);
+
+        ConnectivityManager mConnectivityManager = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+        NetworkInfo mNetworkInfo = mConnectivityManager.getActiveNetworkInfo();
+        if (mNetworkInfo == null || !mNetworkInfo.isConnected()) {
+            new AlertDialog.Builder(this).setMessage("請檢查網路是否已連線！連線後請重新啟動本APP方能使用").setPositiveButton("OK",null).show();
+            btnShowCountdown.setEnabled(false);
+        } else {
+            pp.startGetICIDList(); //下載ICIDlist
+        }
+
 
         btnShowCountdown.setOnClickListener(new View.OnClickListener() {
 
@@ -331,11 +321,6 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
 
                 if (!ICID.equals(gICID) && !ICID.equals("xxx")) { //條件一: ICID不一樣 或 方向不一樣(20180811拿掉，會有頻繁送資訊問題) 且不可為xxx
                     if (inputDirection.equals("1") || inputDirection.equals("2") || inputDirection.equals("3")  ||inputDirection.equals("4") || inputDirection.equals("0") || inputDirection.equals("5") || inputDirection.equals("6")  || inputDirection.equals("7")) {
-                        /*
-                        if (ICID.charAt(0) != 'I') { // (藍芽用)檢查是否有傳送封包丟失
-                                ICID = new StringBuffer(ICID).insert(0, "I").toString();
-                                intersection_input.setText(ICID);
-                            } */
 
                             gICID = ICID; //檢測重複用
 
@@ -349,10 +334,10 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
                             weekday = c1.getWeekday(); //調用CountDown物件中的weekday方法
                             segment = c1.calSegment(); //調用CountDown物件中的calSegment方法，計算分段後回傳
 
-                            Log.e("threadFlag ", "" + threaFlag);
-                            if (threaFlag == 0) { //有人在查詢時，不可以再次重複要求查詢
-                                Log.e("EXECUTING, threadFlag ", "" + threaFlag);
-                                threaFlag = 1; //1表示查詢中 0表示沒有在查詢
+                            Log.e("threaddFlag ", "" + threadFlag);
+                            if (threadFlag == 0) { //有人在查詢時，不可以再次重複要求查詢
+                                Log.e("EXECUTING, threaddFlag ", "" + threadFlag);
+                                threadFlag = 1; //1表示查詢中 0表示沒有在查詢
                                 new LoadAllProducts().execute();
                             }
                         }
@@ -363,40 +348,56 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         });
 
 
-        LocationManager service = (LocationManager) getSystemService(LOCATION_SERVICE);
-        boolean enabled = service.isProviderEnabled(LocationManager.GPS_PROVIDER);
-
-
-        if (!enabled) {
-            Intent intent = new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS);
-            startActivity(intent);
-        }
-
-        // Get the location manager
-        locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-        // Define the criteria how to select the locatioin provider -> use
-        // default
-        Criteria criteria = new Criteria();
-        provider = locationManager.getBestProvider(criteria, false);
-        Location location = locationManager.getLastKnownLocation(provider);
-
-        // Initialize the location fields
-        if (location != null) {
-
-            Toast.makeText(this, "服務器" + provider + "已啟動",
-                    Toast.LENGTH_LONG).show();
-            onLocationChanged(location);
+        if (permission_coarseLocation != PackageManager.PERMISSION_GRANTED || permission_fineLocation != PackageManager.PERMISSION_GRANTED ) {
+            ActivityCompat.requestPermissions(this, new String[] {ACCESS_COARSE_LOCATION, ACCESS_FINE_LOCATION},REQUEST_EXTERNAL_ACCESS_COARSE_LOCATION);
         } else {
-          Toast.makeText(this, "正在搜尋gps",
-                    Toast.LENGTH_LONG).show();
-        }
-    }
 
+            LocationManager service = (LocationManager) getSystemService(LOCATION_SERVICE);
+            boolean enabled = service.isProviderEnabled(LocationManager.GPS_PROVIDER);
+
+            if (!enabled) {
+                Intent intent = new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS);
+                startActivity(intent);
+            }
+
+            // Get the location manager
+            locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+            // Define the criteria how to select the locatioin provider -> use
+            // default
+            Criteria criteria = new Criteria();
+            provider = locationManager.getBestProvider(criteria, false);
+            Location location = locationManager.getLastKnownLocation(provider);
+
+            // Initialize the location fields
+            if (location != null) {
+
+                Toast.makeText(this, "服務器" + provider + "已啟動",
+                        Toast.LENGTH_LONG).show();
+                onLocationChanged(location);
+            } else {
+                Toast.makeText(this, "正在搜尋gps",
+                        Toast.LENGTH_LONG).show();
+            }
+
+        }
+
+
+
+
+    }
 
     @Override
     protected void onResume() {
         super.onResume();
         locationManager.requestLocationUpdates(provider, 1000, 5, this);
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (cc != null) {
+            cc.cancel();
+        }
     }
 
 
@@ -406,9 +407,17 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         locationManager.removeUpdates(this);
     }
 
-    Position pp = new Position();
+    @Override
+    protected void onStop() {
+        super.onStop();
+        if (cc!=null) {
+            cc.cancel();
+        }
+    }
+
+
     String t1_ICID = "1",t2_ICID = "1",t3_ICID = "1",directionResult = "1";
-    int ICIDcount=0;
+    int ICID_xxx_Count=0;
     int gpsSpeed;
 
     @Override
@@ -424,12 +433,11 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
 
           t1_ICID = pp.calSquareRange();
 
-          gpsSpeed = (int) (location.getSpeed()*3.6) ;
+          gpsSpeed = (int) (location.getSpeed()*3.6) ; //目前速度功能
 
           TextSpeed.setText(gpsSpeed +"km/hr");
 
           ICIDin.setText(t1_ICID);
-          times.setText(String.valueOf(ICIDcount));
 
               if (t1_ICID.equals(t2_ICID) && t1_ICID.equals(t3_ICID)) { //多次送同樣的才認定是最後正確的ICID
                   if (!t1_ICID.equals("xxx")) {
@@ -438,18 +446,27 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
                       direction_input.setText(directionResult);
                       intersection_input.setText(t1_ICID);
 
+
                       btnShowCountdown.callOnClick();
 
-                      ICIDcount = 0;
                   } else {
-                      intersection_input.setText("xxx");
-                      btnShowCountdown.callOnClick();
+                      if (ICID_xxx_Count == 5) {
+                          intersection_input.setText("xxx");
+                          btnShowCountdown.callOnClick();
+                          ICID_xxx_Count = 0;
+                      } else {
+                          ICID_xxx_Count++;
+                      }
                   }
               } else {
+                  if (t1_ICID.equals("xxx")) {
+                      ICID_xxx_Count++;
+                  }
                   t3_ICID = t2_ICID; //三次驗證確認OK才顯示
                   t2_ICID = t1_ICID;
-                  ICIDcount++;
               }
+
+        times.setText(String.valueOf(ICID_xxx_Count)); //顯示計數次數
 
     }
 
@@ -460,6 +477,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
 
     @Override
     public void onProviderEnabled(String provider) {
+
         Toast.makeText(this, "Enabled new provider " + provider,
                 Toast.LENGTH_SHORT).show();
 
@@ -472,204 +490,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     }
 
 
-    //以下是藍牙控制
     /*
-    public void onActivityResult(int requestCode, int resultCode, Intent data) {
-        switch (requestCode) {
-            case REQUEST_CONNECT_DEVICE:     //连接结果，由DeviceListActivity设置返回
-                // 响应返回结果
-                if (resultCode == Activity.RESULT_OK) {   //连接成功，由DeviceListActivity设置返回
-                    // MAC地址，由DeviceListActivity设置返回
-                    String address = data.getExtras().getString(DeviceListActivity.EXTRA_DEVICE_ADDRESS);
-                    // 得到蓝牙设备句柄
-                    _device = _bluetooth.getRemoteDevice(address);
-
-                    // 用服务号得到socket
-                    try {
-                        _socket = _device.createRfcommSocketToServiceRecord(UUID.fromString(MY_UUID));
-                    } catch (IOException e) {
-                        Toast.makeText(this, "連接失敗！", Toast.LENGTH_SHORT).show();
-                    }
-                    //连接socket
-                    Button btn = (Button) findViewById(R.id.Button03);
-                    try {
-                        _socket.connect();
-                        Toast.makeText(this, "連接" + _device.getName() + "成功！", Toast.LENGTH_SHORT).show();
-                        btn.setText("斷開");
-                    } catch (IOException e) {
-                        try {
-                            Toast.makeText(this, "連接失敗！", Toast.LENGTH_SHORT).show();
-                            _socket.close();
-                            _socket = null;
-                        } catch (IOException ee) {
-                            Toast.makeText(this, "連接失敗！", Toast.LENGTH_SHORT).show();
-                        }
-
-                        return;
-                    }
-
-                    //打开接收线程
-                    try {
-                        is = _socket.getInputStream();//得到蓝牙数据输入流
-                    } catch (IOException e) {
-                        Toast.makeText(this, "接收數據失敗！", Toast.LENGTH_SHORT).show();
-                        return;
-                    }
-                    if (bThread == false) {
-                        ReadThread.start();
-
-                        bThread = true;
-                    } else {
-                        bRun = true;
-                    }
-                }
-                break;
-            default:
-                break;
-        }
-    }
-
-
-    //接收数据线程
-    Thread ReadThread = new Thread() {
-
-        public void run() {
-
-            int num = 0;
-            Integer Num = 0;
-
-            byte[] buffer = new byte[1024];
-            byte[] buffer_new = new byte[1024];
-
-            int i = 0;
-            int n = 0;
-            bRun = true;
-            //接收线程
-            while (true) {
-                try {
-                    while (is.available() == 0) {
-                        while (bRun == false) {
-                        }
-                    }
-                    while (true) {
-
-                        num = is.read(buffer);         //读入数据
-                        n = 0;
-
-                        String s0 = new String(buffer, 0, num);
-                        fmsg += s0;    //保存收到数据
-                        for (i = 0; i < num; i++) {
-                            if ((buffer[i] == 0x0d) && (buffer[i + 1] == 0x0a)) {
-                                buffer_new[n] = 0x0a;
-                                i++;
-                            } else {
-                                buffer_new[n] = buffer[i];
-                            }
-                            n++;
-                        }
-                        String s = new String(buffer_new, 0, n);
-                        smsg += s;
-
-
-                        //写入接收缓存
-                        if (is.available() == 0) {
-                            smsg = fmsg;
-                            break;
-                        }  //短时间没有数据才跳出进行显
-
-
-                    }
-                    //发送显示消息，进行显示刷新
-                    handler.sendMessage(handler.obtainMessage());
-                } catch (IOException e) {
-                }
-            }
-        }
-    };
-
-
-
-    //消息处理队列
-    Handler handler = new Handler() {
-        public void handleMessage(Message msg) {
-
-            super.handleMessage(msg);
-            dis.setText(smsg);//显示数据
-            //切割字串
-            if (smsg.contains(",")) {
-                String[] smsg_parts = new String[4];
-                smsg_parts = smsg.split(",");
-                // Log.d("SPLITS LENGTH", "" + smsg_parts.length);
-                // Log.d("SPLITS", "" + smsg_parts);
-                if (smsg_parts.length > 1) {
-
-                    final EditText intersection_in = (EditText) findViewById(R.id.intersection_input);
-                    final EditText direction_in = (EditText) findViewById(R.id.phaseid_input);
-                    intersection_in.setText(smsg_parts[0]);
-                    //phaseID_in.setText(smsg_parts[1]);
-                    angle = Double.parseDouble(smsg_parts[1]);
-                    //   ICID = smsg_parts[0];
-                    //  phaseID = smsg_parts[1];
-                    direction = getDirection(angle);
-                    direction_in.setText(direction);
-                    btnShowCountdown.callOnClick(); //呼叫按下按鈕
-                }
-            } else {
-                Toast.makeText(MainActivity.this, "傳了一個無法分解的東西", Toast.LENGTH_SHORT);
-            }
-
-            new android.os.Handler().postDelayed(new Runnable() {
-                @Override
-                public void run() {
-                    fmsg = "";
-                }
-            }, 100);
-        }
-    };
-
-    //关闭程序掉用处理部分
-    public void onDestroy() {
-        super.onDestroy();
-        if (_socket != null)  //关闭连接socket
-            try {
-                _socket.close();
-            } catch (IOException e) {
-            }
-        _bluetooth.disable();  //关闭蓝牙服务
-    }
-
-    //连接按键响应函数
-    public void onConnectButtonClicked(View v) {
-        if (_bluetooth.isEnabled() == false) {  //如果蓝牙服务不可用则提示
-            Toast.makeText(this, " 打開藍芽中...", Toast.LENGTH_LONG).show();
-            _bluetooth.enable();
-            return;
-        }
-
-
-        //如未连接设备则打开DeviceListActivity进行设备搜索
-        Button btn = (Button) findViewById(R.id.Button03);
-        if (_socket == null) {
-            Intent serverIntent = new Intent(this, DeviceListActivity.class); //跳转程序设置
-            startActivityForResult(serverIntent, REQUEST_CONNECT_DEVICE);  //设置返回宏定义
-        } else {
-            //关闭连接socket
-            try {
-
-                is.close();
-                //_bluetooth.disable();
-                //_device = null;
-                _socket.close();
-                _socket = null;
-                bRun = false;
-                btn.setText("連接");
-            } catch (IOException e) {
-            }
-        }
-        return;
-    }
-    */
-
     public void CleanSetText() {
         G1.setText(null);
         G2.setText(null);
@@ -687,81 +508,71 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         R2.setText(null);
         R3.setText(null);
         R4.setText(null);
-    }
+    } */
 
+    CountDownTimer cc;
     public void count(int number) {
 
-        final TextView countdown_txt = (TextView) findViewById(R.id.countDown_sec);
-        final ImageView lightColor_img = (ImageView) findViewById(lightColor);
 
         if (number == 999999) { //查詢失敗或錯誤，顯示無路口
             TextView interSection_txt = (TextView) findViewById(R.id.interSection_Name);
-            if (cc!=null) { //
+            if (cc!=null) { //確認物件cc存在才做取消，否則會有null exception 錯誤
                 cc.cancel();
             }
             interSection_txt.setText("");
             lightColor_img.setImageResource(no_light);
             countdown_txt.setText("無路口");
 
+        } else if (number == 111111) {
+
+            lightColor_img.setImageResource(no_light);
+            countdown_txt.setText("閃光");
+
         } else {
 
-            cc = new CountDownTimer(number * 1000, 1000) {  //countstatus[countstatusIndex]
+                cc = new CountDownTimer(number * 1000 , 1000) {  //countStatus[countStatusIndex]
 
-                @Override
-                public void onTick(long millisUntilFinished) {
-                    countFlag = 1;
-                    threaFlag = 0;
-                    if (countstatusIndex == 0) {
-                        lightColor_img.setImageResource(green);
-                    } else if (countstatusIndex == 1) {
-                        lightColor_img.setImageResource(yello);
-                    } else if (countstatusIndex == 2) {
-                        lightColor_img.setImageResource(red);
+                    @Override
+                    public void onTick(long millisUntilFinished) {
+                        countFlag = 1;
+                        threadFlag = 0;
+                        if (countStatusIndex == 0 || countStatusIndex == 3) {
+                            lightColor_img.setImageResource(green);
+                        } else if (countStatusIndex == 1 || countStatusIndex == 4) {
+                            lightColor_img.setImageResource(yello);
+                        } else if (countStatusIndex == 2 || countStatusIndex == 5) {
+                            lightColor_img.setImageResource(red);
+                        }
+
+                        countdown_txt.setText("" + millisUntilFinished / 1000);
+                        if (millisUntilFinished / 1000 == 20) {
+                            mp_20.start();
+                        } else if (millisUntilFinished / 1000 == 10) {
+                            mp_10.start();
+                        }
+
                     }
 
-
-                    countdown_txt.setText("" + millisUntilFinished / 1000);
-                    if (millisUntilFinished / 1000 == 20) {
-                        mp_20.start();
-                    } else if (millisUntilFinished / 1000 == 10) {
-                        mp_10.start();
+                    @Override
+                    public void onFinish() {
+                        if (countStatusIndex < 2) {
+                            countStatusIndex++;
+                        } else if (countStatusIndex == 3) {
+                            countStatusIndex = 1;
+                        } else if (countStatusIndex == 4) {
+                            countStatusIndex = 2;
+                        } else if (countStatusIndex == 5) {
+                            countStatusIndex = 0;
+                        } else if (countStatusIndex == 2) {
+                            countStatusIndex = 0;
+                        }
+                        cc.cancel();
+                        count(countStatus[countStatusIndex]);
                     }
-                }
-
-                @Override
-                public void onFinish() {
-
-                    System.out.println("@@@@@@@@@@@@@@@@@@@@@@@");
-                    d("FINISH:countstatusIndex", "" + countstatusIndex);
-                    d("FINISH:countstatus", "" + countstatus[countstatusIndex]);
-
-                    if (countstatusIndex < 2) {
-                        countstatusIndex++;
-                        cc.cancel();
-                        count(countstatus[countstatusIndex]);
-                    } else if (countstatusIndex == 3) {
-                        countstatusIndex = 1;
-                        cc.cancel();
-                        count(countstatus[countstatusIndex]);
-                    } else if (countstatusIndex == 4) {
-                        countstatusIndex = 2;
-                        cc.cancel();
-                        count(countstatus[countstatusIndex]);
-                    } else if (countstatusIndex == 5) {
-                        countstatusIndex = 0;
-                        cc.cancel();
-                        count(countstatus[countstatusIndex]);
-                    } else if (countstatusIndex == 2) {
-                        countstatusIndex = 0;
-                        cc.cancel();
-                        count(countstatus[countstatusIndex]);
-                    }
-
-                }
-            };
-            cc.start();
+                }.start();
+            }
         }
-    }
+
 
     //正常:第一分相
     public void calTime_First (int g_timeLength) {
@@ -771,30 +582,20 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
             lightColor_img.setImageResource(green);
             timer_green = green_sec - g_timeLength;
 
-            countstatus[3] = timer_green; //使用[3]表第一次運行要用不一樣的秒數
-            countstatusIndex = 3;
+            countStatus[3] = timer_green; //使用[3]表第一次運行要用不一樣的秒數
+            countStatusIndex = 3;
 
-            d("綠燈秒數 ", "" + green_sec);
-            d("倒數 ", "" + timer_green);
-
-            d("countstatusIndex", "" + countstatusIndex);
-            d("countstatus", "" + countstatus[countstatusIndex]);
-            count(countstatus[countstatusIndex]);
+            count(countStatus[countStatusIndex]);
 
         } else if (green_sec <= g_timeLength && g_timeLength < (yellow_sec + green_sec)) {
 
             lightColor_img.setImageResource(yello);
             timer__yellow = (yellow_sec + green_sec) - g_timeLength;
 
-            countstatus[4] = timer__yellow; //使用[3]表第一次運行要用不一樣的秒數
-            countstatusIndex = 4;
+            countStatus[4] = timer__yellow; //使用[4]表第一次運行要用不一樣的秒數
+            countStatusIndex = 4;
 
-            d("黃燈秒數 ", "" + yellow_sec);
-            d("倒數 ", "" + timer__yellow);
-            d("countstatusIndex", "" + countstatusIndex);
-            d("countstatus", "" + countstatus[countstatusIndex]);
-
-            count(countstatus[countstatusIndex]);
+            count(countStatus[countStatusIndex]);
 
 
         } else if ((green_sec + yellow_sec) <= g_timeLength) {
@@ -802,23 +603,19 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
             lightColor_img.setImageResource(red);
             timer_red = cycle - g_timeLength;
 
-            countstatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
-            countstatusIndex = 5;
-            d("紅燈秒數 ", "" + red_sec);
-            d("倒數 ", "" + timer_red);
+            countStatus[5] = timer_red; //使用[5]表第一次運行要用不一樣的秒數
+            countStatusIndex = 5;
 
-            d("countstatusIndex", "" + countstatusIndex);
-            d("countstatus", "" + countstatus[countstatusIndex]);
-            count(countstatus[countstatusIndex]);
+            count(countStatus[countStatusIndex]);
         }
 
-        /*SetText*/
+        /*SetText
         CleanSetText();
         G1.setText(String.valueOf(green_sec));
         Y1.setText(" "+String.valueOf(yellow_sec));
         AR1.setText(" "+String.valueOf(allred_sec));
         R1.setText(" "+String.valueOf(red_sec));
-        TIMELENGTH.setText(" "+String.valueOf(g_timeLength));
+        TIMELENGTH.setText(" "+String.valueOf(g_timeLength));*/
 
     }
     //正常:第二分相
@@ -826,7 +623,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
 
         if (g_timeLength < (s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]+s_allred_sec[g_phaseNUM])) {
 
-            lightColor_img.setImageResource(red);
+            //lightColor_img.setImageResource(red);
             timer_red = (s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM] + s_allred_sec[g_phaseNUM]) - g_timeLength;
             d("特殊紅燈秒數 ", "" + (s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]));
             d("倒數 ", "" + timer_red);
@@ -834,14 +631,14 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
             d("s_yellow_sec ", "" + s_yellow_sec[g_phaseNUM]);
             d("s_allred_sec ", "" + s_allred_sec[g_phaseNUM]);
 
-            countstatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
-            countstatusIndex = 5;
-            count(countstatus[countstatusIndex]);
+            countStatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
+            countStatusIndex = 5;
+            count(countStatus[countStatusIndex]);
 
 
         } else if ((s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM] + s_allred_sec[g_phaseNUM]) <= g_timeLength && g_timeLength < (s_green_sec[g_phaseNUM] + green_sec + s_yellow_sec[g_phaseNUM] + s_allred_sec[g_phaseNUM])) {
 
-            lightColor_img.setImageResource(green);
+           // lightColor_img.setImageResource(green);
             timer_green = (s_green_sec[g_phaseNUM] + green_sec + s_yellow_sec[g_phaseNUM] + s_allred_sec[g_phaseNUM]) - g_timeLength;
 
             d("綠燈秒數 ", "" + green_sec);
@@ -850,14 +647,14 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
             d("s_yellow_sec ", "" + s_yellow_sec[g_phaseNUM]);
             d("s_allred_sec ", "" + s_allred_sec[g_phaseNUM]);
 
-            countstatus[3] = timer_green; //使用[3]表第一次運行要用不一樣的秒數
-            countstatusIndex = 3;
-            count(countstatus[countstatusIndex]);
+            countStatus[3] = timer_green; //使用[3]表第一次運行要用不一樣的秒數
+            countStatusIndex = 3;
+            count(countStatus[countStatusIndex]);
 
 
         } else if ((s_green_sec[g_phaseNUM] + green_sec + s_yellow_sec[g_phaseNUM]+ s_allred_sec[g_phaseNUM]) <= g_timeLength && g_timeLength < (s_green_sec[g_phaseNUM] + green_sec + s_yellow_sec[g_phaseNUM] + yellow_sec + s_allred_sec[g_phaseNUM])) {
 
-            lightColor_img.setImageResource(yello);
+           // lightColor_img.setImageResource(yello);
             timer__yellow = (s_green_sec[g_phaseNUM] + green_sec + s_yellow_sec[g_phaseNUM] + yellow_sec + s_allred_sec[g_phaseNUM]) - g_timeLength;
             d("黃燈秒數 ", "" + yellow_sec);
             d("倒數 ", "" + timer__yellow);
@@ -865,13 +662,13 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
             d("s_yellow_sec ", "" + s_yellow_sec[g_phaseNUM]);
             d("s_allred_sec ", "" + s_allred_sec[g_phaseNUM]);
 
-            countstatus[4] = timer__yellow; //使用[3]表第一次運行要用不一樣的秒數
-            countstatusIndex = 4;
-            count(countstatus[countstatusIndex]);
+            countStatus[4] = timer__yellow; //使用[3]表第一次運行要用不一樣的秒數
+            countStatusIndex = 4;
+            count(countStatus[countStatusIndex]);
 
         } else if ((s_green_sec[g_phaseNUM] + green_sec + s_yellow_sec[g_phaseNUM] + yellow_sec + s_allred_sec[g_phaseNUM]) <= g_timeLength) {
 
-            lightColor_img.setImageResource(red);
+           // lightColor_img.setImageResource(red);
            // timer_red = cycle - g_timeLength;
 
             g_timeLength = g_timeLength - (s_green_sec[g_phaseNUM] + green_sec + s_yellow_sec[g_phaseNUM] + yellow_sec + s_allred_sec[g_phaseNUM]);
@@ -883,18 +680,18 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
             d("s_yellow_sec ", "" + s_yellow_sec[g_phaseNUM]);
             d("s_allred_sec ", "" + s_allred_sec[g_phaseNUM]);
 
-            countstatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
-            countstatusIndex = 5;
-            count(countstatus[countstatusIndex]);
+            countStatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
+            countStatusIndex = 5;
+            count(countStatus[countStatusIndex]);
         }
 
-        /*SetText*/
+        /*SetText
         CleanSetText();
         G2.setText(String.valueOf(green_sec));
         Y2.setText(" "+String.valueOf(yellow_sec));
         AR2.setText(" "+String.valueOf(allred_sec));
         R2.setText(" "+String.valueOf(red_sec));
-        TIMELENGTH.setText(" "+String.valueOf(g_timeLength));
+        TIMELENGTH.setText(" "+String.valueOf(g_timeLength));*/
 
     }
 
@@ -903,51 +700,51 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
 
         if (g_timeLength < (green_sec + s_green_sec[g_phaseNUM])) {
 
-            lightColor_img.setImageResource(green);
+          //  lightColor_img.setImageResource(green);
 
             timer_green = green_sec + s_green_sec[g_phaseNUM] - g_timeLength;
 
-            countstatus[3] = timer_green; //使用[3]表第一次運行要用不一樣的秒數
-            countstatusIndex = 3;
+            countStatus[3] = timer_green; //使用[3]表第一次運行要用不一樣的秒數
+            countStatusIndex = 3;
 
             Log.e("phase 1 早開的分相", "");
             Log.d("綠燈秒數 ", "green_sec" + green_sec + "s_green_sec" + s_green_sec[g_phaseNUM]);
             d("倒數 ", "" + timer_green);
 
-            d("countstatusIndex", "" + countstatusIndex);
-            d("countstatus", "" + countstatus[countstatusIndex]);
-            count(countstatus[countstatusIndex]);
+            d("countStatusIndex", "" + countStatusIndex);
+            d("countStatus", "" + countStatus[countStatusIndex]);
+            count(countStatus[countStatusIndex]);
 
 
         } else if ((green_sec + s_green_sec[g_phaseNUM]) <= g_timeLength && g_timeLength < (green_sec + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM])) {
 
-            lightColor_img.setImageResource(yello);
+          //  lightColor_img.setImageResource(yello);
             timer__yellow = (green_sec + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]) - g_timeLength;
 
-            countstatus[4] = timer__yellow; //使用[3]表第一次運行要用不一樣的秒數
-            countstatusIndex = 4;
+            countStatus[4] = timer__yellow; //使用[3]表第一次運行要用不一樣的秒數
+            countStatusIndex = 4;
 
             Log.e("phase 1 早開的分相", "");
             d("黃燈秒數 ", "" + yellow_sec);
             d("倒數 ", "" + timer__yellow);
-            d("countstatusIndex", "" + countstatusIndex);
-            d("countstatus", "" + countstatus[countstatusIndex]);
+            d("countStatusIndex", "" + countStatusIndex);
+            d("countStatus", "" + countStatus[countStatusIndex]);
 
-            count(countstatus[countstatusIndex]);
+            count(countStatus[countStatusIndex]);
 
 
         } else if ((green_sec + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]) <= g_timeLength) {
 
-            lightColor_img.setImageResource(red);
+          //  lightColor_img.setImageResource(red);
             timer_red = cycle - g_timeLength;
 
             Log.e("phase 1 早開的分相", "");
             d("紅燈秒數 ", "" + red_sec);
             d("倒數 ", "" + timer_red);
 
-            countstatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
-            countstatusIndex = 5;
-            count(countstatus[countstatusIndex]);
+            countStatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
+            countStatusIndex = 5;
+            count(countStatus[countStatusIndex]);
         }
     }
 
@@ -958,15 +755,15 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
 
             timer_green = (green_sec + yellow_sec + s_green_sec[g_phaseNUM]) - g_timeLength;
 
-            countstatus[3] = timer_green; //使用[3]表第一次運行要用不一樣的秒數
-            countstatusIndex = 3;
+            countStatus[3] = timer_green; //使用[3]表第一次運行要用不一樣的秒數
+            countStatusIndex = 3;
 
             d("綠燈秒數 ", "" + green_sec);
             d("倒數 ", "" + timer_green);
 
-            d("countstatusIndex", "" + countstatusIndex);
-            d("countstatus", "" + countstatus[countstatusIndex]);
-            count(countstatus[countstatusIndex]);
+            d("countStatusIndex", "" + countStatusIndex);
+            d("countStatus", "" + countStatus[countStatusIndex]);
+            count(countStatus[countStatusIndex]);
 
 
         } else if ((green_sec + yellow_sec + s_green_sec[g_phaseNUM]) <= g_timeLength && g_timeLength < (green_sec + yellow_sec + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM])) {
@@ -974,15 +771,15 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
             lightColor_img.setImageResource(yello);
             timer__yellow = (green_sec + yellow_sec + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]) - g_timeLength;
 
-            countstatus[4] = timer__yellow; //使用[3]表第一次運行要用不一樣的秒數
-            countstatusIndex = 4;
+            countStatus[4] = timer__yellow; //使用[3]表第一次運行要用不一樣的秒數
+            countStatusIndex = 4;
 
             d("黃燈秒數 ", "" + yellow_sec);
             d("倒數 ", "" + timer__yellow);
-            d("countstatusIndex", "" + countstatusIndex);
-            d("countstatus", "" + countstatus[countstatusIndex]);
+            d("countStatusIndex", "" + countStatusIndex);
+            d("countStatus", "" + countStatus[countStatusIndex]);
 
-            count(countstatus[countstatusIndex]);
+            count(countStatus[countStatusIndex]);
 
 
         } else if ((green_sec + yellow_sec + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]) <= g_timeLength) {
@@ -992,9 +789,9 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
             d("紅燈秒數 ", "" + red_sec);
             d("倒數 ", "" + timer_red);
 
-            countstatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
-            countstatusIndex = 5;
-            count(countstatus[countstatusIndex]);
+            countStatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
+            countStatusIndex = 5;
+            count(countStatus[countStatusIndex]);
         }
     }
 
@@ -1003,19 +800,19 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
 
         if (g_timeLength < s_green_sec[0] ) {
 
-            lightColor_img.setImageResource(red);
+        //    lightColor_img.setImageResource(red);
             timer_red = s_green_sec[0] - g_timeLength;
             d("倒數 ", "" + timer_red);
 
 
-            countstatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
-            countstatusIndex = 5;
-            count(countstatus[countstatusIndex]);
+            countStatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
+            countStatusIndex = 5;
+            count(countStatus[countStatusIndex]);
 
 
         } else if (s_green_sec[0] <= g_timeLength && g_timeLength < (s_green_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM] + green_sec)) {
 
-            lightColor_img.setImageResource(green);
+       //     lightColor_img.setImageResource(green);
             timer_green = (s_green_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM] + green_sec) - g_timeLength;
             d("綠燈秒數 ", "" + green_sec);
             d("倒數 ", "" + timer_green);
@@ -1023,14 +820,14 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
             d("s_yellow_sec ", "" + s_yellow_sec[g_phaseNUM]);
             d("s_allred_sec ", "" + s_allred_sec[g_phaseNUM]);
 
-            countstatus[3] = timer_green; //使用[3]表第一次運行要用不一樣的秒數
-            countstatusIndex = 3;
-            count(countstatus[countstatusIndex]);
+            countStatus[3] = timer_green; //使用[3]表第一次運行要用不一樣的秒數
+            countStatusIndex = 3;
+            count(countStatus[countStatusIndex]);
 
 
         } else if ((s_green_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM] + green_sec) <= g_timeLength && g_timeLength < (s_green_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM] + green_sec + yellow_sec)) {
 
-            lightColor_img.setImageResource(yello);
+         //   lightColor_img.setImageResource(yello);
             timer__yellow = (s_green_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM] + green_sec + yellow_sec) - g_timeLength;
           //  Log.d("黃燈秒數 ", "" + yellow_sec);
             d("倒數 ", "" + timer__yellow);
@@ -1038,13 +835,13 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
             d("s_yellow_sec ", "" + s_yellow_sec[g_phaseNUM]);
             d("s_allred_sec ", "" + s_allred_sec[g_phaseNUM]);
 
-            countstatus[4] = timer__yellow; //使用[3]表第一次運行要用不一樣的秒數
-            countstatusIndex = 4;
-            count(countstatus[countstatusIndex]);
+            countStatus[4] = timer__yellow; //使用[3]表第一次運行要用不一樣的秒數
+            countStatusIndex = 4;
+            count(countStatus[countStatusIndex]);
 
         } else if ((s_green_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM] + green_sec + yellow_sec) <= g_timeLength) {
 
-            lightColor_img.setImageResource(red);
+       //     lightColor_img.setImageResource(red);
             timer_red = cycle - g_timeLength;
             d("紅燈秒數 ", "" + red_sec);
             d("倒數 ", "" + timer_red);
@@ -1052,9 +849,9 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
             d("s_yellow_sec ", "" + s_yellow_sec[g_phaseNUM]);
             d("s_allred_sec ", "" + s_allred_sec[g_phaseNUM]);
 
-            countstatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
-            countstatusIndex = 5;
-            count(countstatus[countstatusIndex]);
+            countStatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
+            countStatusIndex = 5;
+            count(countStatus[countStatusIndex]);
         }
     }
 
@@ -1068,9 +865,9 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
             d("倒數 ", "" + timer_red);
 
 
-            countstatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
-            countstatusIndex = 5;
-            count(countstatus[countstatusIndex]);
+            countStatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
+            countStatusIndex = 5;
+            count(countStatus[countStatusIndex]);
 
 
         } else if (red_sec <= g_timeLength && g_timeLength < (red_sec+ s_green_sec[g_phaseNUM] + green_sec + yellow_sec)) {
@@ -1080,9 +877,9 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
             d("綠燈秒數 ", "" + green_sec);
             d("倒數 ", "" + timer_green);
 
-            countstatus[3] = timer_green; //使用[3]表第一次運行要用不一樣的秒數
-            countstatusIndex = 3;
-            count(countstatus[countstatusIndex]);
+            countStatus[3] = timer_green; //使用[3]表第一次運行要用不一樣的秒數
+            countStatusIndex = 3;
+            count(countStatus[countStatusIndex]);
 
 
         } else if ((red_sec+ s_green_sec[g_phaseNUM] + green_sec + yellow_sec) <= g_timeLength) {
@@ -1095,9 +892,9 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
             d("s_yellow_sec ", "" + s_yellow_sec[g_phaseNUM]);
             d("s_allred_sec ", "" + s_allred_sec[g_phaseNUM]);
 
-            countstatus[4] = timer__yellow; //使用[3]表第一次運行要用不一樣的秒數
-            countstatusIndex = 4;
-            count(countstatus[countstatusIndex]);
+            countStatus[4] = timer__yellow; //使用[3]表第一次運行要用不一樣的秒數
+            countStatusIndex = 4;
+            count(countStatus[countStatusIndex]);
         }
     }
 
@@ -1106,114 +903,109 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
 
         if (g_timeLength < (s_green_sec[0] + s_yellow_sec[0] + s_allred_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]+s_allred_sec[g_phaseNUM])) {
 
-            lightColor_img.setImageResource(red);
+     //       lightColor_img.setImageResource(red);
             timer_red = (s_green_sec[0] + s_yellow_sec[0] + s_allred_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]+s_allred_sec[g_phaseNUM]) - g_timeLength;
             d("特殊紅燈秒數 ", "" + (s_green_sec[0] + s_yellow_sec[0] + s_allred_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]+s_allred_sec[g_phaseNUM]));
             d("倒數 ", "" + timer_red);
 
-            countstatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
-            countstatusIndex = 5;
-            count(countstatus[countstatusIndex]);
+            countStatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
+            countStatusIndex = 5;
+            count(countStatus[countStatusIndex]);
 
         } else if ((s_green_sec[0] + s_yellow_sec[0] + s_allred_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]+s_allred_sec[g_phaseNUM]) <= g_timeLength && g_timeLength < (s_green_sec[0] + s_yellow_sec[0] + s_allred_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]+s_allred_sec[g_phaseNUM] + green_sec)) {
 
-            lightColor_img.setImageResource(green);
+       //     lightColor_img.setImageResource(green);
             timer_green = (s_green_sec[0] + s_yellow_sec[0] + s_allred_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]+s_allred_sec[g_phaseNUM] + green_sec) - g_timeLength;
             d("特殊綠燈秒數 ", "" + green_sec);
             d("倒數 ", "" + timer_green);
 
-            countstatus[3] = timer_green; //使用[3]表第一次運行要用不一樣的秒數
-            countstatusIndex = 3;
-            count(countstatus[countstatusIndex]);
+            countStatus[3] = timer_green; //使用[3]表第一次運行要用不一樣的秒數
+            countStatusIndex = 3;
+            count(countStatus[countStatusIndex]);
 
 
         } else if ((s_green_sec[0] + s_yellow_sec[0] + s_allred_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]+s_allred_sec[g_phaseNUM] + green_sec) <= g_timeLength && g_timeLength < (s_green_sec[0] + s_yellow_sec[0] + s_allred_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]+s_allred_sec[g_phaseNUM] + green_sec + yellow_sec)) {
 
-            lightColor_img.setImageResource(yello);
+       //     lightColor_img.setImageResource(yello);
             timer__yellow = (s_green_sec[0] + s_yellow_sec[0] + s_allred_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]+s_allred_sec[g_phaseNUM] + green_sec + yellow_sec) - g_timeLength;
             d("黃燈秒數 ", "" + yellow_sec);
             d("倒數 ", "" + timer__yellow);
 
-            countstatus[4] = timer__yellow; //使用[3]表第一次運行要用不一樣的秒數
-            countstatusIndex = 4;
-            count(countstatus[countstatusIndex]);
+            countStatus[4] = timer__yellow; //使用[3]表第一次運行要用不一樣的秒數
+            countStatusIndex = 4;
+            count(countStatus[countStatusIndex]);
 
         } else if ((s_green_sec[0] + s_yellow_sec[0] + s_allred_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]+s_allred_sec[g_phaseNUM] + green_sec + yellow_sec ) <= g_timeLength) {
 
-            lightColor_img.setImageResource(red);
+       //     lightColor_img.setImageResource(red);
             g_timeLength = g_timeLength - (s_green_sec[0] + s_yellow_sec[0] + s_allred_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]+s_allred_sec[g_phaseNUM] + green_sec + yellow_sec);
             timer_red = red_sec - g_timeLength;
        //     timer_red = cycle - g_timeLength;
             d("紅燈秒數 ", "" + red_sec);
             d("倒數 ", "" + timer_red);
 
-            countstatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
-            countstatusIndex = 5;
-            count(countstatus[countstatusIndex]);
+            countStatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
+            countStatusIndex = 5;
+            count(countStatus[countStatusIndex]);
         }
 
         /*SetText*/
-        CleanSetText();
-        G3.setText(String.valueOf(green_sec));
-        Y3.setText(" "+String.valueOf(yellow_sec));
-        AR3.setText(" "+String.valueOf(allred_sec));
-        R3.setText(" "+String.valueOf(red_sec));
-        TIMELENGTH.setText(" "+String.valueOf(g_timeLength));
+
     }
 
     //正常:最後一個分相
     public void calTime_Last(int g_timeLength) {
         if (g_timeLength < (red_sec - allred_sec)) {
 
-            lightColor_img.setImageResource(red);
+    //        lightColor_img.setImageResource(red);
             timer_red = red_sec - allred_sec - g_timeLength;
             d("紅燈秒數 ", "" + red_sec);
             d("倒數 ", "" + timer_red);
 
-            countstatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
-            countstatusIndex = 5;
-            count(countstatus[countstatusIndex]);
+            countStatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
+            countStatusIndex = 5;
+            count(countStatus[countStatusIndex]);
 
         } else if ((red_sec - allred_sec) <= g_timeLength && g_timeLength < ((red_sec - allred_sec) + green_sec)) {
 
-            lightColor_img.setImageResource(green);
+      //      lightColor_img.setImageResource(green);
             timer_green = ((red_sec - allred_sec) + green_sec) - g_timeLength;
             d("綠燈秒數 ", "" + green_sec);
             d("倒數 ", "" + timer_green);
 
-            countstatus[3] = timer_green; //使用[3]表第一次運行要用不一樣的秒數
-            countstatusIndex = 3;
-            count(countstatus[countstatusIndex]);
+            countStatus[3] = timer_green; //使用[3]表第一次運行要用不一樣的秒數
+            countStatusIndex = 3;
+            count(countStatus[countStatusIndex]);
 
 
         } else if ( ((red_sec - allred_sec) + green_sec) <= g_timeLength && g_timeLength < ((red_sec - allred_sec) + green_sec + yellow_sec)) {
 
-            lightColor_img.setImageResource(yello);
+      //      lightColor_img.setImageResource(yello);
             timer__yellow = ((red_sec - allred_sec) + green_sec + yellow_sec) - g_timeLength;
             d("黃燈秒數 ", "" + yellow_sec);
             d("倒數 ", "" + timer__yellow);
 
-            countstatus[4] = timer__yellow; //使用[3]表第一次運行要用不一樣的秒數
-            countstatusIndex = 4;
-            count(countstatus[countstatusIndex]);
+            countStatus[4] = timer__yellow; //使用[3]表第一次運行要用不一樣的秒數
+            countStatusIndex = 4;
+            count(countStatus[countStatusIndex]);
 
         } else if ( ((red_sec - allred_sec) + green_sec + yellow_sec) <= g_timeLength ) {
             g_timeLength = g_timeLength - ((red_sec - allred_sec) + green_sec + yellow_sec);
             timer_red = red_sec - g_timeLength;
 
-            lightColor_img.setImageResource(red);
-            countstatus[5] = timer_red;
-            countstatusIndex = 5;
-            count(countstatus[countstatusIndex]);
+    //        lightColor_img.setImageResource(red);
+            countStatus[5] = timer_red;
+            countStatusIndex = 5;
+            count(countStatus[countStatusIndex]);
         }
 
-        /*SetText*/
+        /*SetText
         CleanSetText();
         G4.setText(String.valueOf(green_sec));
         Y4.setText(" "+String.valueOf(yellow_sec));
         AR4.setText(" "+String.valueOf(allred_sec));
         R4.setText(" "+String.valueOf(red_sec));
-        TIMELENGTH.setText(" "+String.valueOf(g_timeLength));
+        TIMELENGTH.setText(" "+String.valueOf(g_timeLength));*/
 
     }
 
@@ -1221,44 +1013,44 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     public void calTime_Last_lateCLOSE(int g_timeLength) {
         if (g_timeLength < s_green_sec[0] + s_green_sec[1] + s_yellow_sec[1] ) {
 
-            lightColor_img.setImageResource(red);
+      //      lightColor_img.setImageResource(red);
             timer_red = s_green_sec[0] + s_green_sec[1] + s_yellow_sec[1] - g_timeLength;
             d("紅燈秒數 ", "" + red_sec);
             d("倒數 ", "" + timer_red);
 
-            countstatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
-            countstatusIndex = 5;
-            count(countstatus[countstatusIndex]);
+            countStatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
+            countStatusIndex = 5;
+            count(countStatus[countStatusIndex]);
 
         } else if (s_green_sec[0] + s_green_sec[1] + s_yellow_sec[1] <= g_timeLength && g_timeLength < (s_green_sec[0] + s_green_sec[1] + s_yellow_sec[1] + s_green_sec[2] + s_yellow_sec[2] + green_sec)) {
 
-            lightColor_img.setImageResource(green);
+      //      lightColor_img.setImageResource(green);
             timer_green = (s_green_sec[0] + s_green_sec[1] + s_yellow_sec[1] + s_green_sec[2] + s_yellow_sec[2] + green_sec) - g_timeLength;
             d("綠燈秒數 ", "" + green_sec);
             d("倒數 ", "" + timer_green);
 
-            countstatus[3] = timer_green; //使用[3]表第一次運行要用不一樣的秒數
-            countstatusIndex = 3;
-            count(countstatus[countstatusIndex]);
+            countStatus[3] = timer_green; //使用[3]表第一次運行要用不一樣的秒數
+            countStatusIndex = 3;
+            count(countStatus[countStatusIndex]);
 
 
         } else if ((s_green_sec[0] + s_green_sec[1] + s_yellow_sec[1] + s_green_sec[2] + s_yellow_sec[2] + green_sec)  <= g_timeLength) {
 
-            lightColor_img.setImageResource(yello);
+       //     lightColor_img.setImageResource(yello);
             timer__yellow = cycle - g_timeLength;
             d("黃燈秒數 ", "" + yellow_sec);
             d("倒數 ", "" + timer__yellow);
 
-            countstatus[4] = timer__yellow; //使用[3]表第一次運行要用不一樣的秒數
-            countstatusIndex = 4;
-            count(countstatus[countstatusIndex]);
+            countStatus[4] = timer__yellow; //使用[3]表第一次運行要用不一樣的秒數
+            countStatusIndex = 4;
+            count(countStatus[countStatusIndex]);
 
         }
     }
 
     public void get_phase_theard() { //當時相數量 >= 3 需要其他分相資訊
 
-        Thread get_p1_thread = new Thread() {
+        Thread get_p1_threadd = new Thread() {
             public void run() {
                 List<NameValuePair> s_params = new ArrayList<NameValuePair>();
                 s_params.add(new BasicNameValuePair("ICID", ICID));
@@ -1310,10 +1102,10 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
             }
         };
 
-        get_p1_thread.start();
+        get_p1_threadd.start();
 
         try {
-            get_p1_thread.join();
+            get_p1_threadd.join();
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
@@ -1329,11 +1121,11 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         timeLength = (((hour * 3600) + (min * 60) + sec) - ((startHour * 3600) + (startMin * 60))) - offset;
         timeLength = timeLength % cycle;
 
-        /*SetText*/
+        /*SetText
         HOUR.setText(String.valueOf(hour));
         MIN.setText(" "+ String.valueOf(min));
         SEC.setText(" "+ String.valueOf(sec));
-        TIMELENGTH.setText(" "+String.valueOf(timeLength));
+        TIMELENGTH.setText(" "+String.valueOf(timeLength));*/
 
     }
 
@@ -1344,11 +1136,11 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
 
                 runOnUiThread(new Runnable() {
                                   public void run() {
-                                      TextView count_txt = (TextView) findViewById(R.id.countDown_sec);
+                                      //TextView count_txt = (TextView) findViewById(R.id.countDown_sec);
                                       TextView interSection = (TextView) findViewById(R.id.interSection_Name);
                                       lightColor_img.setImageResource(no_light);
                                       interSection.setText("取得中");
-                                      count_txt.setText("取得中");
+                                      countdown_txt.setText("取得中");
                                   }
                                   });
 
@@ -1390,8 +1182,8 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
                             d("ALLred", "" + c.getString(TAG_ALLRED));
                             cycle = c.getInt(TAG_CYCLE);
                             d("cycle", "" + c.getString(TAG_CYCLE));
-                            segment = c.getInt(TAG_SEGMENT);
-                            d("segment", "" + c.getString(TAG_SEGMENT));
+                           // segment = c.getInt(TAG_SEGMENT);
+                           // d("segment", "" + c.getString(TAG_SEGMENT));
                             planID = c.getString(TAG_PLANID);
                             d("planID", "" + c.getString(TAG_PLANID));
                             offset = c.getInt(TAG_OFFSET);
@@ -1426,7 +1218,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
                                 Toast.makeText(MainActivity.this, "代號"+ICID+",方向"+inputDirection+"錯誤碼:"+success,Toast.LENGTH_LONG).show();
                             }
                         });
-                        threaFlag = 0;
+                        threadFlag = 0;
                     }
                 } catch (JSONException e) {
                     runOnUiThread(new Runnable() {
@@ -1441,41 +1233,22 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
                         runOnUiThread(new Runnable() {
                             public void run() {
 
-
                                 TextView interSection_txt = (TextView) findViewById(R.id.interSection_Name);
-                              //  interSection_txt.setSelected(true);
-                                final TextView countdown_txt = (TextView) findViewById(R.id.countDown_sec);
 
                                 startHour = timeArray[0][segment - 1];
                                 startMin = timeArray[1][segment - 1];
 
                                 interSection_txt.setText(icName);
 
-                                /*
-                                Calendar c = Calendar.getInstance();
-                                hour = c.get(Calendar.HOUR_OF_DAY);
-                                min = c.get(Calendar.MINUTE);
-                                sec = c.get(Calendar.SECOND);
-                                d("小時 ", "" + hour);
-                                d("分 ", "" + min);
-                                d("秒 ", "" + sec); */
-
-                                //getTimeLength();
-
-                                countstatus[0] = green_sec;
-                                countstatus[1] = yellow_sec;
-                                countstatus[2] = red_sec;
-                                Log.d("countstatus[0]",""+countstatus[0]);
-                                Log.d("countstatus[1]",""+countstatus[1]);
-                                Log.d("countstatus[2]",""+countstatus[2]);
-
+                                countStatus[0] = green_sec;
+                                countStatus[1] = yellow_sec;
+                                countStatus[2] = red_sec;
+                                Log.d("countStatus[0]",""+ countStatus[0]);
+                                Log.d("countStatus[1]",""+ countStatus[1]);
+                                Log.d("countStatus[2]",""+ countStatus[2]);
 
 
                                 if (cycle != 0 && !phaseOrder.equals("B0") && !phaseOrder.equals("b0")) { //先確認CYCLE不是0 或 閃光時相(b0)
-
-                                    /*
-                                    timeLength = (((hour * 3600) + (min * 60) + sec) - ((startHour * 3600) + (startMin * 60))) - offset;
-                                    timeLength =timeLength % cycle; */
 
                                     d("startHour ", "" + startHour); //依照startHour和startMin開始計算
                                     d("startMin ", "" + startMin); //依照startHour和startMin開始計算
@@ -1531,9 +1304,9 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
                                                         getTimeLength();
                                                         red_sec = cycle - s_green_sec[1] - s_yellow_sec[1] - green_sec; //重新計算紅燈秒數
 
-                                                        countstatus[0] = green_sec + s_green_sec[1];
-                                                        countstatus[1] = s_yellow_sec[1];
-                                                        countstatus[2] = red_sec;
+                                                        countStatus[0] = green_sec + s_green_sec[1];
+                                                        countStatus[1] = s_yellow_sec[1];
+                                                        countStatus[2] = red_sec;
                                                         e("1A紅燈秒數:",""+red_sec);
                                                         calTime_earlyOPEN_first(timeLength, 1); //分相1早開 (參考第二分相秒數）
                                                         break;
@@ -1547,9 +1320,9 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
                                                         getTimeLength();
                                                         red_sec = cycle - s_green_sec[1] - s_yellow_sec[1] - green_sec - yellow_sec; //重新計算紅燈秒數
 
-                                                        countstatus[0] = green_sec + s_green_sec[1] + s_yellow_sec[1];
-                                                        countstatus[1] = yellow_sec;
-                                                        countstatus[2] = red_sec;
+                                                        countStatus[0] = green_sec + s_green_sec[1] + s_yellow_sec[1];
+                                                        countStatus[1] = yellow_sec;
+                                                        countStatus[2] = red_sec;
                                                         e("1A紅燈秒數:",""+red_sec);
                                                         calTime_lateCLOSE_middle(timeLength, 1); //分相3遲閉 (參考第二分相秒數)
                                                         break;
@@ -1584,9 +1357,9 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
                                                         if (phaseOrder.equals("D3")) { //for I0215 I0551
                                                             get_phase_theard();
                                                             getTimeLength();
-                                                            countstatus[0] = green_sec + s_green_sec[2] + s_yellow_sec[2];
-                                                            countstatus[1] = yellow_sec;
-                                                            countstatus[2] = cycle - green_sec - yellow_sec - s_green_sec[2] - s_yellow_sec[2] ;
+                                                            countStatus[0] = green_sec + s_green_sec[2] + s_yellow_sec[2];
+                                                            countStatus[1] = yellow_sec;
+                                                            countStatus[2] = cycle - green_sec - yellow_sec - s_green_sec[2] - s_yellow_sec[2] ;
 
                                                             calTime_Last_lateCLOSE(timeLength);
 
@@ -1603,7 +1376,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
                                 } else {
                                     lightColor_img.setImageResource(no_light);
                                     countdown_txt.setText("閃光");
-                                    threaFlag = 0;
+                                    threadFlag = 0;
                                 }
                             }
                         });
