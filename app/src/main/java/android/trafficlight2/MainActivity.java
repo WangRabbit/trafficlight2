@@ -1,7 +1,7 @@
 
 package android.trafficlight2;
 
-import java.io.IOException;
+
 import java.io.InputStream;
 
 import java.util.Calendar;
