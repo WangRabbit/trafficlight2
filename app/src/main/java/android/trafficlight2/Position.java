@@ -1,11 +1,27 @@
 package android.trafficlight2;
 
+import android.app.Activity;
+import android.app.ProgressDialog;
+import android.content.Intent;
+import android.drm.DrmStore;
+import android.os.AsyncTask;
+import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
+import android.widget.Toast;
+
+import org.apache.http.NameValuePair;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 
 import static android.R.attr.angle;
+import static android.R.attr.backgroundDimEnabled;
 import static android.R.attr.mode;
+import static android.R.attr.right;
 import static android.icu.lang.UCharacter.GraphemeClusterBreak.L;
 import static org.apache.http.HttpHeaders.IF;
 
@@ -13,7 +29,7 @@ import static org.apache.http.HttpHeaders.IF;
  * Created by user on 2018/7/21.
  */
 
-public class Position {
+public class Position extends AppCompatActivity{
 
     private double s1_lat,s1_lng,s2_lat,s2_lng,s3_lat,s3_lng,s4_lat,s4_lng;
     private double gps_lat_1,gps_lng_1,gps_lat, gps_lng;
@@ -21,43 +37,168 @@ public class Position {
     private int l,h;
 
     private ArrayList<Integer> ICIDinRange = new ArrayList();
+    private ArrayList<Integer> ICIDpreprocessResult = new ArrayList();
 
-    private String[][] ICID_list = {
-            {"I0597","120.218579","23.000978"},
-            {"I0598","120.220509","23.000856"},
-            {"I0599","120.222341","23.000700"},
-            {"I0193","120.218195","22.996277"},
-            {"I0216","120.221915","22.996014"},
-            {"I0370","120.224558","23.000558"},
-            {"I0551","120.224394","22.998492"},
-            {"I0215","120.224166","22.995854"},
-            {"I0415","120.220720","23.003004"},
-            {"I0456","120.223942","22.993546"},
-            {"I0369","120.224490","22.991118"},
-            {"I0639","120.221734","22.993739"},
-            //         {"I0259","120.221677","22.992773"},
-            {"I0144","120.221642","22.992011"},
-            {"I0981","120.222467","22.991715"},
-            {"I0044","120.220021","22.992184"},
-            {"I0122","120.21788","22.992354"},
-            {"I0906","120.218012","22.993817"},
-            {"I1005","120.218084","22.995385"},
-            {"I0979","120.217038","23.001070"},
-            {"I0929","120.218325","22.998454"},
-            {"I0079","120.216672","22.996486"},
-            {"I0274","120.213615","22.996906"},
-            {"I0873","120.214893","22.996789"},
-            {"I0406","120.214482","22.991384"},
-            {"I0862","120.214555","22.992662"},
-            {"I1010","120.214615","22.993435"},
-            {"I1320","120.214683","22.994342"},
-            {"I0357","120.214661","23.001452"},
-            {"I0330","120.215118","23.003969"},
-            {"I0328","120.218784","23.003417"},
-            {"I0329","120.222489","23.002829"},
-            {"I0371","120.224681","23.002397"},
-            {"I1153","120.217576","23.003505"},
-    };
+    // for test begin
+    // Creating JSON Parser object
+    JSONParser jParser = new JSONParser();
+    private static String url_getICIDlist = "http://140.116.97.98/traffic_light/get_ICIDlist.php";
+    private static String url_getICIDlist_lat = "http://140.116.97.98/traffic_light/get_ICIDlist_lat.php";
+
+
+    private static final String TAG_SUCCESS = "success";
+    private static final String TAG_LIST = "list";
+    private static final String TAG_ICID = "ICID";
+    private static final String TAG_WGSX = "WGSX";
+    private static final String TAG_WGSY = "WGSY";
+
+    JSONArray list = null;
+    JSONArray list1 = null;
+
+    private String[][] ICID_list; //下載後儲存
+    private String[][] ICID_list_orderBylat;
+
+    protected ProgressDialog barProgressDialog;
+
+    private class getICIDList extends AsyncTask<String, Integer, String> {
+
+        protected void onPreExecute () {
+
+            super.onPreExecute();
+
+
+            runOnUiThread(new Runnable() {
+                public void run() {
+                    /*
+                    barProgressDialog = new ProgressDialog(MainActivity.class);
+                    barProgressDialog.setTitle("請稍後");
+                    barProgressDialog.setMessage("路口資料下載中...");
+                    barProgressDialog.setProgressStyle(ProgressDialog.STYLE_SPINNER);
+                    barProgressDialog.setCancelable(false);
+                    barProgressDialog.setProgress(0); */
+                }
+            });
+
+        }
+
+        protected String doInBackground(String... args) {
+
+            // Building Parameters
+            List<NameValuePair> params = new ArrayList<NameValuePair>();
+            JSONObject json = jParser.makeHttpRequest(url_getICIDlist, "GET", params);
+            JSONObject json1 = jParser.makeHttpRequest(url_getICIDlist_lat, "GET", params);
+
+
+            try {
+                // Checking for SUCCESS TAG
+                int success = json.getInt(TAG_SUCCESS);
+                int success1 = json1.getInt(TAG_SUCCESS);
+
+                if (success == 1) {
+                    // products found
+                    // Getting Array of Products
+                    list = json.getJSONArray(TAG_LIST);
+
+                    int LEN = list.length();
+
+                    ICID_list = new String[LEN][3];
+                    Log.e("121",""+ICID_list.length);
+
+                    // looping through All Products
+                    for (int i = 0; i < list.length(); i++) {
+                        JSONObject c = list.getJSONObject(i);
+
+                        // Storing each json item in variable
+                        String icid = c.getString(TAG_ICID);
+                        String wgsx = c.getString(TAG_WGSX);
+                        String wgsy = c.getString(TAG_WGSY);
+
+                        wgsx = wgsx.replaceAll("\"", "");
+                        wgsy = wgsy.replaceAll("\"", "");
+
+                        if (!icid.equals("") && !wgsx.equals("") && !wgsy.equals("")) {
+
+                            ICID_list[i][0] = icid;
+                            ICID_list[i][1] = wgsx;
+                            ICID_list[i][2] = wgsy;
+
+                        }
+                    }
+
+                    
+                } else {
+                    // no products found
+                    // Launch Add New product Activity
+                }
+
+                if (success1 == 1) {
+                    // products found
+                    // Getting Array of Products
+
+                    list1 = json1.getJSONArray(TAG_LIST);
+
+                    int LEN_1 = list1.length();
+
+                    ICID_list_orderBylat = new String[LEN_1][3];
+                    Log.e("length","ICID_list_orderBylat : "+ICID_list_orderBylat.length);
+
+
+                    for (int j = 0; j < list1.length(); j++) {
+                        JSONObject c1 = list1.getJSONObject(j);
+
+                        // Storing each json item in variable
+                        String icid_1 = c1.getString(TAG_ICID);
+                        String wgsx_1 = c1.getString(TAG_WGSX);
+                        String wgsy_1 = c1.getString(TAG_WGSY);
+
+                        wgsx_1 = wgsx_1.replaceAll("\"","");
+                        wgsy_1 = wgsy_1.replaceAll("\"","");
+
+                        if (!icid_1.equals("") && !wgsx_1.equals("") && !wgsy_1.equals("")) {
+
+                            ICID_list_orderBylat[j][0] = icid_1;
+                            ICID_list_orderBylat[j][1] = wgsx_1;
+                            ICID_list_orderBylat[j][2] = wgsy_1;
+
+                            Log.e("ICID_list_irderBylat",+j+"[0]"+ICID_list_orderBylat[j][0]);
+                            Log.e("ICID_list_irderBylat",+j+"[1]"+ICID_list_orderBylat[j][1]);
+                            Log.e("ICID_list_irderBylat",+j+"[2]"+ICID_list_orderBylat[j][2]);
+
+
+                        }
+                    }
+
+                } else {
+                    // no products found
+                    // Launch Add New product Activity
+                }
+
+
+
+            } catch (JSONException e) {
+                e.printStackTrace();
+            }
+
+            return null;
+        }
+
+        @Override
+        protected void onProgressUpdate(Integer... values)
+        {
+            super.onProgressUpdate(values);
+        }
+
+        protected void onPostExecute(String file_url) {
+            //barProgressDialog.dismiss();
+
+        }
+
+    }
+
+    public void startGetICIDList(){
+        new getICIDList().execute();
+    }
+    // for test end
 
 
     public void Setting(double gps_lat_1, double gps_lng_1, double gps_lat, double gps_lng) {
@@ -66,6 +207,8 @@ public class Position {
         this.gps_lat = gps_lat;
         this.gps_lng = gps_lng;
     }
+
+
 
     public double getGps_lat_1() {
         return gps_lat_1;
@@ -87,7 +230,7 @@ public class Position {
         return Angle;
     }
 
-    private double rad(double d) {
+    private static double rad(double d) {
         double PI = 3.1415926535898;
         return d * PI / 180.0;
     }
@@ -95,16 +238,143 @@ public class Position {
     private double calGPSdiatance(double fLati1, double fLong1, double fLati2, double fLong2) {
 
         double EARTH_RADIUS = 6378.137;
-            double radLat1 = rad(fLati1);
-            double radLat2 = rad(fLati2);
-            double a = radLat1 - radLat2;
-            double b = rad(fLong1) - rad(fLong2);
-            double s = 2 * Math.asin(Math.sqrt(Math.pow(Math.sin(a/2),2) + Math.cos(radLat1)*Math.cos(radLat2)*Math.pow(Math.sin(b/2),2)));
-            s = s * EARTH_RADIUS;
-            s = (s * 10000000) / 10000;
-            return s;
+        double radLat1 = rad(fLati1);
+        double radLat2 = rad(fLati2);
+        double a = radLat1 - radLat2;
+        double b = rad(fLong1) - rad(fLong2);
+        double s = 2 * Math.asin(Math.sqrt(Math.pow(Math.sin(a / 2), 2) + Math.cos(radLat1) * Math.cos(radLat2) * Math.pow(Math.sin(b / 2), 2)));
+        s = s * EARTH_RADIUS;
+        s = (s * 10000000) / 10000;
+        return s;
+    }
+
+    int centerLabel,leftLabel,rightLabel,centerLabel_1,leftLabel_1,rightLabel_1;
+    private int preProcessMode;
+
+    private void ICID_PreProcess(double latChange,double lngChange,int g_mode) {
+
+        leftLabel = 0;
+        centerLabel = 0;
+        rightLabel = ICID_list.length-1;
+
+        leftLabel_1 = 0;
+        centerLabel_1 = 0;
+        rightLabel_1 = ICID_list_orderBylat.length-1;
+
+        if (latChange > lngChange) {
+
+            while (Math.abs(rightLabel - leftLabel) > 1) {
+
+                centerLabel = (rightLabel + leftLabel) / 2;
+                if (Double.parseDouble(ICID_list[centerLabel][1]) > gps_lng_1) {
+                    rightLabel = centerLabel - 1;
+                } else {
+                    leftLabel = centerLabel + 1;
+                }
+
+                Log.e("leftLabel"," " + leftLabel);
+                Log.e("rightLabel "," " + rightLabel);
+                Log.e("centerLabel ","" + centerLabel);
+                Log.e("======= "," ");
+            }
+            preProcessMode = 1;
+            putResultIntoList(leftLabel,rightLabel,g_mode);
+
+
+        } else {
+
+            while (Math.abs(rightLabel_1 - leftLabel_1) > 1) {
+
+                centerLabel_1 = (rightLabel_1 + leftLabel_1) / 2;
+                if (Double.parseDouble(ICID_list_orderBylat[centerLabel_1][2]) > gps_lat_1) {
+                    rightLabel_1 = centerLabel_1 - 1;
+                } else {
+                    leftLabel_1 = centerLabel_1 + 1;
+                }
+
+                Log.e("leftLabel_1"," " + leftLabel_1);
+                Log.e("rightLabel_1 "," " + rightLabel_1);
+                Log.e("centerLabel_1 ","" + centerLabel_1);
+                Log.e("======= "," ");
+            }
+
+            preProcessMode = 2;
+            putResultIntoList(leftLabel_1,rightLabel_1,g_mode);
+
         }
 
+
+        Log.e("size ",""+ICIDpreprocessResult.size());
+        for (int j = 0;j < ICIDpreprocessResult.size();j++) {
+            Log.e("result ","label "+ j +" = "+ICIDpreprocessResult.get(j));
+        }
+
+
+    }
+
+    private void putResultIntoList(int left,int right,int gg_mode) {
+
+        int N = 7; //蒐集上下N個
+        int j;
+
+        ICIDpreprocessResult.clear(); //先清空
+
+        if (preProcessMode == 1) {
+            if (gg_mode == 3 || gg_mode ==  4) {
+
+                ICIDpreprocessResult.add(right);
+                for (j = 1 ; j <= (N-6) ; j++) {
+                    if ( (right + j) <= ICID_list.length-1 ) {
+                        ICIDpreprocessResult.add(right + j);
+                    }
+                }
+
+                ICIDpreprocessResult.add(left);
+                for (j = 1 ; j <= (N+6) ; j++) {
+                    if ( (left - j) >= 0  ) {
+                        ICIDpreprocessResult.add(left - j);
+                    }
+                }
+
+            } else if (gg_mode == 2 || gg_mode == 1){
+
+                ICIDpreprocessResult.add(right);
+                for (j = 1 ; j <= (N+6) ; j++) {
+                    if ( (right + j) <= ICID_list.length-1 ) {
+                        ICIDpreprocessResult.add(right + j);
+                    }
+                }
+
+                ICIDpreprocessResult.add(left);
+                for (j = 1 ; j <= (N-6) ; j++) {
+                    if ( (left - j) >= 0  ) {
+                        ICIDpreprocessResult.add(left - j);
+                    }
+                }
+
+            }
+
+        } else if (preProcessMode == 2) {
+
+            N = 10;
+
+            ICIDpreprocessResult.add(right);
+            for (j = 1 ; j <= N ; j++) {
+                if ( (right + j) <= ICID_list.length-1 ) {
+                    ICIDpreprocessResult.add(right + j);
+                }
+            }
+
+            ICIDpreprocessResult.add(left);
+            for (j = 1 ; j <= N ; j++) {
+                if ( (left - j) >= 0  ) {
+                    ICIDpreprocessResult.add(left - j);
+                }
+            }
+        }
+
+
+    }
 
     public String calSquareRange() {
 
@@ -140,199 +410,258 @@ public class Position {
 
 
 
+        try { //確認ICIDlist已經下載完成，才能進行計算，否則nullPointerException
 
-        double function_b1,function_b2,function_b3,function_b4; //方程式中的b值
+            ICID_PreProcess(B,A,modeNum);
+            Log.e("preProcessMode",""+preProcessMode);
 
-        System.out.println("ICID長度"+ICID_list.length);
-        System.out.println("ModeNUM: "+modeNum);
+            double function_b1, function_b2, function_b3, function_b4; //方程式中的b值
 
-        switch(modeNum) {
+            System.out.println("ICID長度" + ICID_list.length);
+            System.out.println("ModeNUM: " + modeNum);
 
-            case 1:
-                gps_lat_n = gps_lat_1 + BB;
-                gps_lng_n = gps_lng_1 - AA;
+            switch (modeNum) {
 
-                s1_lat = gps_lat_1 - a;
-                s1_lng = gps_lng_1 - b;
+                case 1:
+                    gps_lat_n = gps_lat_1 + BB;
+                    gps_lng_n = gps_lng_1 - AA;
 
-                s2_lat = gps_lat_1 + a;
-                s2_lng = gps_lng_1 + b;
+                    s1_lat = gps_lat_1 - a;
+                    s1_lng = gps_lng_1 - b;
 
-                s3_lat = gps_lat_n + a;
-                s3_lng = gps_lng_n + b;
+                    s2_lat = gps_lat_1 + a;
+                    s2_lng = gps_lng_1 + b;
 
-                s4_lat = gps_lat_n - a;
-                s4_lng = gps_lng_n - b;
+                    s3_lat = gps_lat_n + a;
+                    s3_lng = gps_lng_n + b;
 
-                function_b1 = s2_lat - ((s3_lat-s2_lat)/(s3_lng-s2_lng)*s2_lng);
-                function_b2 = s4_lat - ((s4_lat-s1_lat)/(s4_lng-s1_lng)*s4_lng);
-                function_b3 = s3_lat - ((s3_lat-s4_lat)/(s3_lng-s4_lng)*s3_lng);
-                function_b4 = s2_lat - ((s2_lat-s1_lat)/(s2_lng-s1_lng)*s2_lng);
+                    s4_lat = gps_lat_n - a;
+                    s4_lng = gps_lng_n - b;
+
+                    function_b1 = s2_lat - ((s3_lat - s2_lat) / (s3_lng - s2_lng) * s2_lng);
+                    function_b2 = s4_lat - ((s4_lat - s1_lat) / (s4_lng - s1_lng) * s4_lng);
+                    function_b3 = s3_lat - ((s3_lat - s4_lat) / (s3_lng - s4_lng) * s3_lng);
+                    function_b4 = s2_lat - ((s2_lat - s1_lat) / (s2_lng - s1_lng) * s2_lng);
 
 
-                ICIDinRange.clear();
-                for (i=0;i<ICID_list.length;i++) {
-                    calICID(modeNum,i,function_b1,function_b2,function_b3,function_b4);
-                //    System.out.println("modeNum = " + modeNum + "mICID = " + mICID);
-                }
+                    ICIDinRange.clear();
+                    for (i = 0; i < ICIDpreprocessResult.size() ; i++) {
+                        int j = ICIDpreprocessResult.get(i); //把ICIDpreprocessResult內的ICIDlist編號依序取出
+                        calICID(modeNum, j, function_b1, function_b2, function_b3, function_b4); //再傳入calICID，計算出誰是想要的ICID
+                    }
 
-                ResultRowNum = Check_ICID();
-                if (ResultRowNum != 999999) {
-                    mICID = ICID_list[ResultRowNum][0];
-                } else {
-                    mICID = "xxx";
-                }
+                    ResultRowNum = Check_ICID();
+                    Log.e("ModeNum","" + modeNum);
+                    Log.e("preProcessMode in","preProcessMode in result " + preProcessMode);
+                    Log.e("ResultRowNum","" + ResultRowNum);
 
-                break;
+                    if (ResultRowNum != 999999) {
 
-            case 2:
-                gps_lat_n = gps_lat_1 + BB;
-                gps_lng_n = gps_lng_1 + AA;
+                        if (preProcessMode == 1) {
+                            mICID = ICID_list[ResultRowNum][0];
+                            Log.e("reault Case 1","");
+                        } else {
+                            mICID = ICID_list_orderBylat[ResultRowNum][0];
+                        }
 
-                s1_lat = gps_lat_1 + a;
-                s1_lng = gps_lng_1 - b;
+                    } else {
+                        mICID = "xxx";
+                    }
 
-                s2_lat = gps_lat_1 - a;
-                s2_lng = gps_lng_1 + b;
+                    break;
 
-                s3_lat = gps_lat_n - a;
-                s3_lng = gps_lng_n + b;
+                case 2:
+                    gps_lat_n = gps_lat_1 + BB;
+                    gps_lng_n = gps_lng_1 + AA;
 
-                s4_lat = gps_lat_n + a;
-                s4_lng = gps_lng_n - b;
+                    s1_lat = gps_lat_1 + a;
+                    s1_lng = gps_lng_1 - b;
 
-                function_b1 = s2_lat - ((s3_lat-s2_lat)/(s3_lng-s2_lng)*s2_lng);
-                function_b2 = s4_lat - ((s4_lat-s1_lat)/(s4_lng-s1_lng)*s4_lng);
-                function_b3 = s3_lat - ((s3_lat-s4_lat)/(s3_lng-s4_lng)*s3_lng);
-                function_b4 = s2_lat - ((s2_lat-s1_lat)/(s2_lng-s1_lng)*s2_lng);
+                    s2_lat = gps_lat_1 - a;
+                    s2_lng = gps_lng_1 + b;
 
-                ICIDinRange.clear();
-                for (i=0;i<ICID_list.length;i++) {
-                    calICID(modeNum,i,function_b1,function_b2,function_b3,function_b4);
-                 //   System.out.println("modeNum = " + modeNum + "mICID = " + mICID);
+                    s3_lat = gps_lat_n - a;
+                    s3_lng = gps_lng_n + b;
 
-                }
+                    s4_lat = gps_lat_n + a;
+                    s4_lng = gps_lng_n - b;
 
-                ResultRowNum = Check_ICID(); //檢查是否有>1個ICID落於區域內
-                if (ResultRowNum != 999999) {
-                    mICID = ICID_list[ResultRowNum][0];
-                } else {
-                    mICID = "xxx";
-                }
+                    function_b1 = s2_lat - ((s3_lat - s2_lat) / (s3_lng - s2_lng) * s2_lng);
+                    function_b2 = s4_lat - ((s4_lat - s1_lat) / (s4_lng - s1_lng) * s4_lng);
+                    function_b3 = s3_lat - ((s3_lat - s4_lat) / (s3_lng - s4_lng) * s3_lng);
+                    function_b4 = s2_lat - ((s2_lat - s1_lat) / (s2_lng - s1_lng) * s2_lng);
 
-                break;
+                    ICIDinRange.clear();
+                    for (i = 0; i < ICIDpreprocessResult.size(); i++) {
+                        int j = ICIDpreprocessResult.get(i);
+                        calICID(modeNum, j,function_b1, function_b2, function_b3, function_b4);
+                    }
 
-            case 3:
-                gps_lat_n = gps_lat_1 - BB;
-                gps_lng_n = gps_lng_1 - AA;
+                    ResultRowNum = Check_ICID(); //檢查是否有>1個ICID落於區域內
+                    Log.e("ModeNum","" + modeNum);
+                    Log.e("preProcessMode in","" + preProcessMode);
+                    Log.e("ResultRowNum","" + ResultRowNum);
 
-                Log.e("gps_lat_1",""+gps_lat_1);
-                Log.e("gps_lng_1",""+gps_lng_1);
+                    if (ResultRowNum != 999999) {
 
-                Log.e("gps_lat_n",""+gps_lat_n);
-                Log.e("gps_lng_n",""+gps_lng_n);
+                        if (preProcessMode == 1) {
+                            mICID = ICID_list[ResultRowNum][0];
+                            Log.e("reault Case 1","");
+                        } else {
+                            mICID = ICID_list_orderBylat[ResultRowNum][0];
+                        }
 
-                s1_lat = gps_lat_1 - a;
-                s1_lng = gps_lng_1 + b;
-                Log.e("s1_lat",""+s1_lat);
-                Log.e("s1_lng",""+s1_lng);
+                    } else {
+                        mICID = "xxx";
+                    }
 
-                s2_lat = gps_lat_1 + a;
-                s2_lng = gps_lng_1 - b;
-                Log.e("s2_lat",""+s2_lat);
-                Log.e("s2_lng",""+s2_lng);
+                    break;
 
-                s3_lat = gps_lat_n + a;
-                s3_lng = gps_lng_n - b;
-                Log.e("s3_lat",""+s3_lat);
-                Log.e("s3_lng",""+s3_lng);
+                case 3:
+                    gps_lat_n = gps_lat_1 - BB;
+                    gps_lng_n = gps_lng_1 - AA;
 
-                s4_lat = gps_lat_n - a;
-                s4_lng = gps_lng_n + b;
-                Log.e("s4_lat",""+s4_lat);
-                Log.e("s4_lng",""+s4_lng);
+                    Log.e("gps_lat_1", "" + gps_lat_1);
+                    Log.e("gps_lng_1", "" + gps_lng_1);
 
-                function_b1 = s2_lat - ((s3_lat-s2_lat)/(s3_lng-s2_lng)*s2_lng);
-                function_b2 = s4_lat - ((s4_lat-s1_lat)/(s4_lng-s1_lng)*s4_lng);
-                function_b3 = s3_lat - ((s3_lat-s4_lat)/(s3_lng-s4_lng)*s3_lng);
-                function_b4 = s2_lat - ((s2_lat-s1_lat)/(s2_lng-s1_lng)*s2_lng);
+                    Log.e("gps_lat_n", "" + gps_lat_n);
+                    Log.e("gps_lng_n", "" + gps_lng_n);
 
-                ICIDinRange.clear();
-                for (i=0;i<ICID_list.length;i++) {
-                    calICID(modeNum, i, function_b1, function_b2, function_b3, function_b4);
-                   // System.out.println("modeNum = " + modeNum + "mICID = " + mICID);
-                }
+                    s1_lat = gps_lat_1 - a;
+                    s1_lng = gps_lng_1 + b;
+                    Log.e("s1_lat", "" + s1_lat);
+                    Log.e("s1_lng", "" + s1_lng);
 
-                ResultRowNum = Check_ICID(); //檢查是否有>1個ICID落於區域內
-                if (ResultRowNum != 999999) {
-                    mICID = ICID_list[ResultRowNum][0];
-                } else {
-                    mICID = "xxx";
-                }
+                    s2_lat = gps_lat_1 + a;
+                    s2_lng = gps_lng_1 - b;
+                    Log.e("s2_lat", "" + s2_lat);
+                    Log.e("s2_lng", "" + s2_lng);
 
-                break;
+                    s3_lat = gps_lat_n + a;
+                    s3_lng = gps_lng_n - b;
+                    Log.e("s3_lat", "" + s3_lat);
+                    Log.e("s3_lng", "" + s3_lng);
 
-            case 4:
-                gps_lat_n = gps_lat_1 - BB;
-                gps_lng_n = gps_lng_1 + AA;
+                    s4_lat = gps_lat_n - a;
+                    s4_lng = gps_lng_n + b;
+                    Log.e("s4_lat", "" + s4_lat);
+                    Log.e("s4_lng", "" + s4_lng);
 
-                s1_lat = gps_lat_1 + a;
-                s1_lng = gps_lng_1 + b;
-                Log.e("s1_lat",""+s1_lat);
-                Log.e("s1_lng",""+s1_lng);
+                    function_b1 = s2_lat - ((s3_lat - s2_lat) / (s3_lng - s2_lng) * s2_lng);
+                    function_b2 = s4_lat - ((s4_lat - s1_lat) / (s4_lng - s1_lng) * s4_lng);
+                    function_b3 = s3_lat - ((s3_lat - s4_lat) / (s3_lng - s4_lng) * s3_lng);
+                    function_b4 = s2_lat - ((s2_lat - s1_lat) / (s2_lng - s1_lng) * s2_lng);
 
-                s2_lat = gps_lat_1 - a;
-                s2_lng = gps_lng_1 - b;
+                    ICIDinRange.clear();
+                    for (i = 0; i < ICIDpreprocessResult.size(); i++) {
+                        int j = ICIDpreprocessResult.get(i);
+                        calICID(modeNum, j,function_b1, function_b2, function_b3, function_b4);
+                    }
 
-                Log.e("s2_lat",""+s2_lat);
-                Log.e("s2_lng",""+s2_lng);
+                    ResultRowNum = Check_ICID(); //檢查是否有>1個ICID落於區域內
+                    Log.e("ModeNum","" + modeNum);
+                    Log.e("preProcessMode in","preProcessMode in result " + preProcessMode);
+                    Log.e("ResultRowNum","" + ResultRowNum);
 
-                s3_lat = gps_lat_n - a;
-                s3_lng = gps_lng_n - b;
 
-                Log.e("s3_lat",""+s3_lat);
-                Log.e("s3_lng",""+s3_lng);
+                    if (ResultRowNum != 999999) {
+                        if (preProcessMode == 1) {
+                            mICID = ICID_list[ResultRowNum][0];
+                            Log.e("reault Case 1","");
+                        } else {
+                            mICID = ICID_list_orderBylat[ResultRowNum][0];
+                        }
 
-                s4_lat = gps_lat_n + a;
-                s4_lng = gps_lng_n + b;
+                    } else {
+                        mICID = "xxx";
+                    }
 
-                Log.e("s4_lat",""+s4_lat);
-                Log.e("s4_lng",""+s4_lng);
+                    break;
 
-                function_b1 = s2_lat - ((s3_lat-s2_lat)/(s3_lng-s2_lng)*s2_lng);
-                function_b2 = s4_lat - ((s4_lat-s1_lat)/(s4_lng-s1_lng)*s4_lng);
-                function_b3 = s3_lat - ((s3_lat-s4_lat)/(s3_lng-s4_lng)*s3_lng);
-                function_b4 = s2_lat - ((s2_lat-s1_lat)/(s2_lng-s1_lng)*s2_lng);
+                case 4:
+                    gps_lat_n = gps_lat_1 - BB;
+                    gps_lng_n = gps_lng_1 + AA;
 
-/*
-                function_b1 = s2_lng - ((s3_lng-s2_lng)/(s3_lat-s2_lat)*s2_lat);
-                function_b2 = s4_lng - ((s4_lng-s1_lng)/(s4_lat-s1_lat)*s4_lat);
-                function_b3 = s3_lng - ((s3_lng-s4_lng)/(s3_lat-s4_lat)*s3_lat);
-                function_b4 = s2_lng - ((s2_lng-s1_lng)/(s2_lat-s1_lat)*s2_lat);
-*/
-                ICIDinRange.clear();
-                for (i=0;i<ICID_list.length;i++) {
-                    calICID(modeNum,i,function_b1,function_b2,function_b3,function_b4);
-                   // System.out.println("modeNum = " + modeNum + "mICID = " + mICID);
-                }
+                    s1_lat = gps_lat_1 + a;
+                    s1_lng = gps_lng_1 + b;
+                    Log.e("s1_lat", "" + s1_lat);
+                    Log.e("s1_lng", "" + s1_lng);
 
-                ResultRowNum = Check_ICID(); //檢查是否有>1個ICID落於區域內
-                if (ResultRowNum != 999999) {
-                    mICID = ICID_list[ResultRowNum][0];
-                } else {
-                    mICID = "xxx";
-                }
-                break;
+                    s2_lat = gps_lat_1 - a;
+                    s2_lng = gps_lng_1 - b;
+
+                    Log.e("s2_lat", "" + s2_lat);
+                    Log.e("s2_lng", "" + s2_lng);
+
+                    s3_lat = gps_lat_n - a;
+                    s3_lng = gps_lng_n - b;
+
+                    Log.e("s3_lat", "" + s3_lat);
+                    Log.e("s3_lng", "" + s3_lng);
+
+                    s4_lat = gps_lat_n + a;
+                    s4_lng = gps_lng_n + b;
+
+                    Log.e("s4_lat", "" + s4_lat);
+                    Log.e("s4_lng", "" + s4_lng);
+
+                    function_b1 = s2_lat - ((s3_lat - s2_lat) / (s3_lng - s2_lng) * s2_lng);
+                    function_b2 = s4_lat - ((s4_lat - s1_lat) / (s4_lng - s1_lng) * s4_lng);
+                    function_b3 = s3_lat - ((s3_lat - s4_lat) / (s3_lng - s4_lng) * s3_lng);
+                    function_b4 = s2_lat - ((s2_lat - s1_lat) / (s2_lng - s1_lng) * s2_lng);
+
+                    ICIDinRange.clear();
+                    for (i = 0; i < ICIDpreprocessResult.size(); i++) {
+                        int j = ICIDpreprocessResult.get(i);
+                        calICID(modeNum, j,function_b1, function_b2, function_b3, function_b4);
+                    }
+
+                    ResultRowNum = Check_ICID(); //檢查是否有>1個ICID落於區域內
+                    Log.e("ModeNum","" + modeNum);
+                    Log.e("preProcessMode in","preProcessMode in result" + preProcessMode);
+                    Log.e("ResultRowNum","" + ResultRowNum);
+
+                    if (ResultRowNum != 999999) {
+
+                        if (preProcessMode == 1) {
+                            mICID = ICID_list[ResultRowNum][0];
+                            Log.e("reault Case 1","");
+                        } else {
+                            mICID = ICID_list_orderBylat[ResultRowNum][0];
+                        }
+
+                    } else {
+                        mICID = "xxx";
+                    }
+                    break;
+            }
+        } catch (NullPointerException e) {
+            e.printStackTrace();
         }
         return mICID;
     }
 
-    public void calICID(int gModeNum,int rowNum,double function_b1, double function_b2, double function_b3, double function_b4) {
+    public void calICID(int gModeNum,int rowNum, double function_b1, double function_b2, double function_b3, double function_b4) {
         double result1,result2,result3,result4;
         double ICID_lng,ICID_lat;
 
-        ICID_lat = Double.parseDouble(ICID_list[rowNum][2]);
-        ICID_lng = Double.parseDouble(ICID_list[rowNum][1]);
+
+        try {
+            switch(preProcessMode) {
+                case 1:
+                    ICID_lat = Double.parseDouble(ICID_list[rowNum][2]);
+                    ICID_lng = Double.parseDouble(ICID_list[rowNum][1]);
+                    break;
+                case 2:
+                    ICID_lat = Double.parseDouble(ICID_list_orderBylat[rowNum][2]);
+                    ICID_lng = Double.parseDouble(ICID_list_orderBylat[rowNum][1]);
+                    break;
+
+                default:
+                    ICID_lat = 0;
+                    ICID_lng = 0;
+            }
+
 
         result1 = ICID_lat - ((s3_lat-s2_lat)/(s3_lng-s2_lng)*ICID_lng) - function_b1;
         result2 = ICID_lat - ((s4_lat-s1_lat)/(s4_lng-s1_lng)*ICID_lng) - function_b2;
@@ -388,6 +717,10 @@ public class Position {
                 break;
         }
 
+        } catch (ArrayIndexOutOfBoundsException e_out) {
+            e_out.printStackTrace();
+        }
+
     }
 
     private int Check_ICID() {
@@ -398,6 +731,8 @@ public class Position {
         } else if (ICIDinRange.size() == 1){
             System.out.println("ICID只有一個");
             ICID_RowNum = ICIDinRange.get(0); //若沒有則唯一的那個就是我們要的ICID
+            System.out.println("ICID_RowNum "+ICID_RowNum);
+
         } else if (ICIDinRange.size() == 0) { //都沒有找到則回傳999999
             System.out.println("找不到ICID");
             ICID_RowNum = 999999;
@@ -408,7 +743,7 @@ public class Position {
     private int Find_Correct_ICID_in_Many() { //若有>1個ICID落於區域內，找出最短的那個
         int i,j;
         int correctRowNum = 0;
-        String rICID = "1";
+
         double lat,lng;
         double tmp_result;
         double result = 99999999;
@@ -421,8 +756,14 @@ public class Position {
 
             for (i=0;i < ICIDinRange.size();i++) {
 
-                    lat = Double.parseDouble(ICID_list[ICIDinRange.get(i)][2]);
-                    lng = Double.parseDouble(ICID_list[ICIDinRange.get(i)][1]);
+             if (preProcessMode == 1) {
+                 lat = Double.parseDouble(ICID_list[ICIDinRange.get(i)][2]);
+                 lng = Double.parseDouble(ICID_list[ICIDinRange.get(i)][1]);
+             } else {
+                 lat = Double.parseDouble(ICID_list_orderBylat[ICIDinRange.get(i)][2]);
+                 lng = Double.parseDouble(ICID_list_orderBylat[ICIDinRange.get(i)][1]);
+             }
+
                     tmp_result = Math.sqrt(((lat - gps_lat_1) * (lat - gps_lat_1)) + ((lng - gps_lng_1) * (lng - gps_lng_1)));
                     if (tmp_result < result) {
                         result = tmp_result;
@@ -435,7 +776,6 @@ public class Position {
 
     /*以上是抓ICID的部分*/
 
-    /*以下抓方位角 20180808尚未完成*/
 
     private double computeAzimuth() {
         double result = 0.0;

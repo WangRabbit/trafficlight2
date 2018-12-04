@@ -86,9 +86,7 @@ import static android.trafficlight2.R.drawable.green;
 import static android.trafficlight2.R.drawable.no_light;
 import static android.trafficlight2.R.drawable.red;
 import static android.trafficlight2.R.drawable.yello;
-import static android.trafficlight2.R.id.HOUR;
-import static android.trafficlight2.R.id.PhasrOrder;
-import static android.trafficlight2.R.id.TIMELENGTH;
+
 import static android.trafficlight2.R.id.countDown_sec;
 import static android.trafficlight2.R.id.intersection_input;
 import static android.trafficlight2.R.id.lightColor;
@@ -233,36 +231,6 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         mp_10 = MediaPlayer.create(this, R.raw.count_10);
         mp_red = MediaPlayer.create(this, R.raw.intersection_red);
 
-
-        G1 = (TextView) findViewById(R.id.G1);
-        G2 = (TextView) findViewById(R.id.G2);
-        G3 = (TextView) findViewById(R.id.G3);
-        G4 = (TextView) findViewById(R.id.G4);
-
-        Y1 = (TextView) findViewById(R.id.Y1);
-        Y2 = (TextView) findViewById(R.id.Y2);
-        Y3 = (TextView) findViewById(R.id.Y3);
-        Y4 = (TextView) findViewById(R.id.Y4);
-
-        AR1 = (TextView) findViewById(R.id.AR1);
-        AR2 = (TextView) findViewById(R.id.AR2);
-        AR3 = (TextView) findViewById(R.id.AR3);
-        AR4 = (TextView) findViewById(R.id.AR4);
-
-        R1 = (TextView) findViewById(R.id.R1);
-        R2 = (TextView) findViewById(R.id.R2);
-        R3 = (TextView) findViewById(R.id.R3);
-        R4 = (TextView) findViewById(R.id.R4);
-
-        OFFSET = (TextView) findViewById(R.id.Offset);
-        ORDER = (TextView) findViewById(R.id.PhasrOrder);
-        CYCLE = (TextView) findViewById(R.id.Cycle);
-        TIMELENGTH = (TextView) findViewById(R.id.TIMELENGTH);
-        PLANID = (TextView) findViewById(R.id.PLANID);
-
-        HOUR = (TextView) findViewById(R.id.HOUR);
-        MIN = (TextView) findViewById(R.id.MIN);
-        SEC = (TextView) findViewById(R.id.SEC);
     }
 
     @Override
@@ -1199,15 +1167,6 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
 
 
                         /*SetText*/
-                        runOnUiThread(new Runnable() {
-                            @Override
-                            public void run() {
-                                ORDER.setText(" "+String.valueOf(phaseOrder));
-                                OFFSET.setText(String.valueOf(offset));
-                                CYCLE.setText(" "+String.valueOf(cycle));
-                                PLANID.setText(String.valueOf(planID));
-                            }
-                        });
 
 
 

@@ -13,6 +13,8 @@ public class CountDown{
 
     private int compensateStatus = 0;
     private Calendar c = Calendar.getInstance();
+    protected int[][] timeArray = {{0, 1, 6, 7, 8, 8, 11, 12, 13, 16, 17, 18, 21, 22, 23},
+                                   {0, 0, 0, 0, 15, 45, 45, 30, 15, 00, 00, 45, 00, 15, 00}};
 
     public int getWeekday() {
 
