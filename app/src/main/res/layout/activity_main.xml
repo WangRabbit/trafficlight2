@@ -9,13 +9,7 @@
     android:layout_weight="1"
     tools:context="android.trafficlight2.MainActivity">
 
-    <android.support.v7.widget.Toolbar xmlns:app="http://schemas.android.com/apk/res-auto"
-        android:id="@+id/tb_toolbar"
-        android:layout_width="match_parent"
-        android:layout_height="?attr/actionBarSize"
-        android:background="@color/colorPrimary"
-        app:title="@string/app_name"
-        app:titleTextColor="@android:color/white"></android.support.v7.widget.Toolbar>
+    <include layout="@layout/toolbar_layout"/>
 
 
     <ImageView
