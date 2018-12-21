@@ -2,6 +2,7 @@ package android.trafficlight2;
 
 import android.app.Activity;
 import android.app.ProgressDialog;
+import android.content.Context;
 import android.content.Intent;
 import android.drm.DrmStore;
 import android.os.AsyncTask;
@@ -35,6 +36,7 @@ public class Position extends AppCompatActivity{
     private double gps_lat_1,gps_lng_1,gps_lat, gps_lng;
     private double Angle;
     private int l,h;
+    private Context context;
 
     private ArrayList<Integer> ICIDinRange = new ArrayList();
     private ArrayList<Integer> ICIDpreprocessResult = new ArrayList();
@@ -60,22 +62,26 @@ public class Position extends AppCompatActivity{
 
     protected ProgressDialog barProgressDialog;
 
+    public Position(Context mcontext) {
+        this.context = mcontext;
+    }
+
     private class getICIDList extends AsyncTask<String, Integer, String> {
 
         protected void onPreExecute () {
 
             super.onPreExecute();
 
-
             runOnUiThread(new Runnable() {
                 public void run() {
-                    /*
-                    barProgressDialog = new ProgressDialog(MainActivity.class);
+
+                    barProgressDialog = new ProgressDialog(context);
                     barProgressDialog.setTitle("請稍後");
                     barProgressDialog.setMessage("路口資料下載中...");
                     barProgressDialog.setProgressStyle(ProgressDialog.STYLE_SPINNER);
                     barProgressDialog.setCancelable(false);
-                    barProgressDialog.setProgress(0); */
+                    barProgressDialog.setProgress(0);
+                    barProgressDialog.show();
                 }
             });
 
@@ -189,7 +195,7 @@ public class Position extends AppCompatActivity{
         }
 
         protected void onPostExecute(String file_url) {
-            //barProgressDialog.dismiss();
+            barProgressDialog.dismiss();
 
         }
 

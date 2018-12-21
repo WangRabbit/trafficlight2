@@ -1,6 +1,6 @@
 <resources>
 
-    <style name="AppTheme" parent="Theme.AppCompat.Light.NoActionBar">
+    <style name="AppTheme" parent="Theme.AppCompat.Light.DarkActionBar">
 
         <item name="colorPrimary">@color/colorPrimary</item>
         <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
@@ -8,23 +8,9 @@
 
         <!-- Customize your theme here. -->
 
-
     </style>
 
-    <style name="toolBarTheme" parent="Theme.AppCompat.Light.NoActionBar">
 
-        <item name="android:textColorPrimary">@android:color/white</item>
-        <item name="android:textColorSecondary">@android:color/holo_green_light</item>
-        <item name="android:colorPrimary">@android:color/holo_green_dark</item>
-        <item name="android:colorPrimaryDark">@android:color/holo_green_dark</item>
-        <item name="android:windowBackground">@android:color/background_dark</item>
-    </style>
-
-    <style name="AppTheme.Base" parent="Theme.AppCompat">
-        <item name="windowActionBar">false</item>
-
-        <item name="windowNoTitle">true</item>
-    </style>
 
     <style name="AppBarOverlay" parent="ThemeOverlay.AppCompat.Dark.ActionBar" />
 

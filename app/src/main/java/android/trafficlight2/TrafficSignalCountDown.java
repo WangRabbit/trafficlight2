@@ -1,14 +1,23 @@
 package android.trafficlight2;
 
 import android.app.Activity;
+import android.content.Context;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.widget.ImageView;
 import android.view.View;
 import android.widget.Toast;
+import android.trafficlight2.JSONParser;
 
 
+import org.apache.http.NameValuePair;
+import org.apache.http.message.BasicNameValuePair;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.List;
 
 import static android.trafficlight2.R.drawable.green;
 import static android.trafficlight2.R.drawable.red;
@@ -16,22 +25,43 @@ import static android.trafficlight2.R.drawable.yello;
 import static android.util.Log.d;
 import static android.util.Log.e;
 
-public class TrafficSignalCountDown extends MainActivity{
-    protected String deviceID;
-    protected String phaseID,planID;
-    protected int green_sec, yellow_sec, allred_sec,red_sec,cycle;
-    protected int segment,offset,direction,phaseCount;
-    protected String phaseOrder;
+
+
+public class TrafficSignalCountDown{
+
+    /*
+    // Creating JSON Parser object
+    JSONParser jParser = new JSONParser();
+    // url to get all products list
+    private static String url_getLightData = "http://140.116.97.98/traffic_light/get_newLightData.php";
+    private static String url_S_getLightData = "http://140.116.97.98/traffic_light/get_S_newLightData.php"; //192.168.0.100
+
+
+    private String deviceID;
+    private String phaseID,planID;
+    private int green_sec, yellow_sec, allred_sec,red_sec,cycle;
+    private int segment,offset,direction,phaseCount;
+    private String phaseOrder;
 
     private int timeLength;
+    private int timer_green;
+    private int timer__yellow;
+    private int timer_red;
+    private int countStatusIndex;
 
     private Calendar calendar = Calendar.getInstance();
     private int[] countStatus = {0,0,0,0,0,0};
 
     private int startHour,startMin;
 
-    public TrafficSignalCountDown() {
+    private Context context;
 
+    public TrafficSignalCountDown(Context context) {
+        this.context = context;
+    }
+
+    private void showToast(String str) {
+        Toast.makeText(context, str, Toast.LENGTH_SHORT).show();
     }
 
     public void setDeviceID(String mDeviceID) {
@@ -89,10 +119,6 @@ public class TrafficSignalCountDown extends MainActivity{
         this.phaseOrder = mPhaseOrder;
     }
 
-    /*
-    public void setTimeLength(int mTimeLength) {
-        this.timeLength = mTimeLength;
-    } */
 
 
     public void calTimeLength() {
@@ -109,7 +135,7 @@ public class TrafficSignalCountDown extends MainActivity{
 
 
     //正常:第一分相
-    public void calTime_First () {
+    private void calTime_First () {
 
         if (timeLength < green_sec) {
 
@@ -145,7 +171,7 @@ public class TrafficSignalCountDown extends MainActivity{
     }
 
     //正常:第二分相
-    public void calTime_middle_2 (int g_phaseNUM) {
+    private void calTime_middle_2 (int g_phaseNUM) {
 
         if (timeLength < (s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]+s_allred_sec[g_phaseNUM])) {
 
@@ -212,7 +238,7 @@ public class TrafficSignalCountDown extends MainActivity{
     }
 
     //特殊:phase 1 早開的分相
-    public void calTime_earlyOPEN_first (int g_phaseNUM) {
+    private void calTime_earlyOPEN_first (int g_phaseNUM) {
 
         if (timeLength < (green_sec + s_green_sec[g_phaseNUM])) {
 
@@ -261,7 +287,7 @@ public class TrafficSignalCountDown extends MainActivity{
     }
 
     //特殊:phase 1 遲閉
-    public void calTime_lateCLOSE_first (int g_phaseNUM) { //g_phaseNUM 要參照的
+    private void calTime_lateCLOSE_first (int g_phaseNUM) { //g_phaseNUM 要參照的
 
         if (timeLength < (green_sec + yellow_sec + s_green_sec[g_phaseNUM])) {
 
@@ -306,7 +332,7 @@ public class TrafficSignalCountDown extends MainActivity{
     }
 
     //特殊:中間的phase  遲閉
-    public void calTime_lateCLOSE_middle (int g_phaseNUM) {
+    private void calTime_lateCLOSE_middle (int g_phaseNUM) {
 
         if (timeLength < s_green_sec[0] ) {
 
@@ -362,7 +388,7 @@ public class TrafficSignalCountDown extends MainActivity{
     }
 
     //特殊:中間的phase  早開
-    public void calTime_earlyOPEN_middle (int g_phaseNUM) {
+    private void calTime_earlyOPEN_middle (int g_phaseNUM) {
 
         if (timeLength < red_sec ) {
 
@@ -402,7 +428,7 @@ public class TrafficSignalCountDown extends MainActivity{
     }
 
     //正常:第三個分相
-    public void calTime_middle_3 (int g_phaseNUM) {
+    private void calTime_middle_3 (int g_phaseNUM) {
 
         if (timeLength < (s_green_sec[0] + s_yellow_sec[0] + s_allred_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]+s_allred_sec[g_phaseNUM])) {
 
@@ -452,7 +478,7 @@ public class TrafficSignalCountDown extends MainActivity{
     }
 
     //正常:最後一個分相
-    public void calTime_Last() {
+    private void calTime_Last() {
         if (timeLength < (red_sec - allred_sec)) {
 
             timer_red = red_sec - allred_sec - timeLength;
@@ -493,13 +519,13 @@ public class TrafficSignalCountDown extends MainActivity{
             count(countStatus[countStatusIndex]);
         }
 
-        /*SetText*/
+
 
 
     }
 
     //特殊:最後一個分相遲閉
-    public void calTime_Last_lateCLOSE() {
+    private void calTime_Last_lateCLOSE() {
         if (timeLength < s_green_sec[0] + s_green_sec[1] + s_yellow_sec[1] ) {
 
             timer_red = s_green_sec[0] + s_green_sec[1] + s_yellow_sec[1] - timeLength;
@@ -535,6 +561,71 @@ public class TrafficSignalCountDown extends MainActivity{
     }
 
 
+    public void get_phase_theard() { //當時相數量 >= 3 需要其他分相資訊
+
+        Thread get_p1_threadd = new Thread() {
+            public void run() {
+                List<NameValuePair> s_params = new ArrayList<NameValuePair>();
+                s_params.add(new BasicNameValuePair("ICID", ICID));
+                s_params.add(new BasicNameValuePair("planID", planID));
+                //  s_params.add(new BasicNameValuePair("phaseID", g_phase));
+
+                JSONObject json = jParser.makeHttpRequest(url_S_getLightData, "GET", s_params);
+
+                try {
+                    // Checking for SUCCESS TAG
+                    final int success = json.getInt(TAG_SUCCESS);
+                    //   d("SUCCESS xxxxxx", "" + success);
+
+                    if (success == 1) {
+
+                        getPhase = json.getJSONArray(TAG_PRODUCTS);
+                        Log.e("getPhaseLength", "" + getPhase.length());
+
+                        for (i=0;i < 6 ; i++) { //先把陣列裡的都洗掉
+                            s_green_sec[i] = 0;
+                            s_allred_sec[i] = 0;
+                            s_yellow_sec[i] = 0;
+                        }
+
+                        for (i = 0; i < getPhase.length(); i++) {
+                            JSONObject s = getPhase.getJSONObject(i);
+                            // Storing each json item in variable
+                            d("phaseLength",""+getPhase.length());
+                            s_green_sec[i] = s.getInt(TAG_greentime);
+                            d("s_GREEN ", "num "+ i + "time " + s.getInt(TAG_greentime));
+                            s_yellow_sec[i] = s.getInt(TAG_YELLOW);
+                            d("s_yellow ", "num "+ i+"time " + s.getInt(TAG_YELLOW));
+                            s_allred_sec[i] = s.getInt(TAG_ALLRED);
+                            d("s_ALLred ", "num "+ i+"time " + s.getInt(TAG_ALLRED));
+                        }
+
+
+                    } else {
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                showToast("123123");
+                            }
+                        });
+                    }
+                } catch (JSONException e) {
+
+                }
+            }
+        };
+
+        get_p1_threadd.start();
+
+        try {
+            get_p1_threadd.join();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+
+
+
     public void start() {
         if (cycle != 0 && !phaseOrder.equals("B0") && !phaseOrder.equals("b0")) { //先確認CYCLE不是0 或 閃光時相(b0)
 
@@ -564,7 +655,7 @@ public class TrafficSignalCountDown extends MainActivity{
 
     }
 
-    public void phaseCount_2() {
+    private void phaseCount_2() {
 
         switch (Integer.parseInt(phaseID)) {
             case 1:
@@ -579,7 +670,7 @@ public class TrafficSignalCountDown extends MainActivity{
         }
     }
 
-    public void phaseCount_3() {
+    private void phaseCount_3() {
         Log.e("我是三時相", "");
         switch (Integer.parseInt(phaseID)) {
             case 1:
@@ -601,7 +692,7 @@ public class TrafficSignalCountDown extends MainActivity{
         }
     }
 
-    public void phaseCount_4(String gPhaseOrder) {
+    private void phaseCount_4(String gPhaseOrder) {
 
         if (gPhaseOrder.equals("1A")) { //1A 早開遲閉二時相
 
@@ -686,5 +777,6 @@ public class TrafficSignalCountDown extends MainActivity{
         return timeLength;
     }
 
-
+*/
 }
+

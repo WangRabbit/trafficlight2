@@ -9,19 +9,22 @@
     android:layout_weight="1"
     tools:context="android.trafficlight2.MainActivity">
 
-    <include layout="@layout/toolbar_layout"/>
-
+    <include
+        android:id="@+id/toolBar"
+        layout="@layout/toolbar_layout"
+        />
 
     <ImageView
         android:id="@+id/lightColor"
-        android:layout_width="174dp"
-        android:layout_height="235dp"
+        android:layout_width="179dp"
+        android:layout_height="227dp"
         android:layout_marginStart="8dp"
+        android:layout_marginTop="8dp"
         android:layout_weight="1"
         android:scaleType="center"
         android:src="@drawable/no_light"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/tb_toolbar" />
+        app:layout_constraintTop_toBottomOf="@+id/toolBar" />
 
 
     <TextView
@@ -36,22 +39,6 @@
         android:text=""
         android:textSize="50sp"
         app:layout_constraintTop_toBottomOf="@+id/lightColor" />
-
-
-    <Button
-        android:id="@+id/location"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginEnd="8dp"
-        android:layout_marginStart="8dp"
-        android:layout_marginTop="8dp"
-        android:gravity="center_vertical"
-        android:text="取得"
-        android:textSize="30sp"
-        android:visibility="visible"
-        app:layout_constraintEnd_toEndOf="@+id/lightColor"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/countDown_sec" />
 
 
     <TextView
@@ -92,7 +79,7 @@
         android:textStyle="bold"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toEndOf="@+id/lightColor"
-        app:layout_constraintTop_toBottomOf="@+id/tb_toolbar" />
+        app:layout_constraintTop_toBottomOf="@+id/toolBar" />
 
 
     <EditText
@@ -117,7 +104,7 @@
         android:layout_marginStart="8dp"
         android:layout_marginTop="8dp"
         android:layout_weight="1"
-        android:inputType="textCapWords"
+        android:inputType="number"
         android:text="1"
         android:textSize="25sp"
         android:visibility="visible"
