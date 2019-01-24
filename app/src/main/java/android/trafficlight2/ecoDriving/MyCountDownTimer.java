@@ -1,4 +1,4 @@
-package android.trafficlight2;
+package android.trafficlight2.ecoDriving;
 
 import android.os.Handler;
 import android.support.v7.app.AppCompatActivity;

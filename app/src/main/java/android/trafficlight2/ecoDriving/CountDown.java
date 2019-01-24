@@ -1,4 +1,4 @@
-package android.trafficlight2;
+package android.trafficlight2.ecoDriving;
 
 import android.os.CountDownTimer;
 import android.widget.TextView;

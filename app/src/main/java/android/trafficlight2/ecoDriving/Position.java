@@ -1,4 +1,4 @@
-package android.trafficlight2;
+package android.trafficlight2.ecoDriving;
 
 import android.app.Activity;
 import android.app.ProgressDialog;
@@ -7,6 +7,7 @@ import android.content.Intent;
 import android.drm.DrmStore;
 import android.os.AsyncTask;
 import android.support.v7.app.AppCompatActivity;
+import android.trafficlight2.JSONParser;
 import android.util.Log;
 import android.widget.Toast;
 

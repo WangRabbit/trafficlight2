@@ -16,12 +16,12 @@
 
     <ImageView
         android:id="@+id/lightColor"
-        android:layout_width="179dp"
-        android:layout_height="227dp"
+        android:layout_width="170dp"
+        android:layout_height="159dp"
         android:layout_marginStart="8dp"
         android:layout_marginTop="8dp"
         android:layout_weight="1"
-        android:scaleType="center"
+        android:scaleType="centerInside"
         android:src="@drawable/no_light"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/toolBar" />
@@ -37,7 +37,7 @@
         android:gravity="center_horizontal"
         android:inputType="textCapWords"
         android:text=""
-        android:textSize="50sp"
+        android:textSize="40sp"
         app:layout_constraintTop_toBottomOf="@+id/lightColor" />
 
 
@@ -75,7 +75,7 @@
         android:layout_marginTop="8dp"
         android:maxEms="4"
         android:text="前方路口"
-        android:textSize="40sp"
+        android:textSize="30dp"
         android:textStyle="bold"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toEndOf="@+id/lightColor"
@@ -101,6 +101,7 @@
         android:id="@+id/phaseid_input"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_marginBottom="8dp"
         android:layout_marginStart="8dp"
         android:layout_marginTop="8dp"
         android:layout_weight="1"
@@ -108,36 +109,10 @@
         android:text="1"
         android:textSize="25sp"
         android:visibility="visible"
+        app:layout_constraintBottom_toTopOf="@+id/Speed"
         app:layout_constraintStart_toEndOf="@+id/intersection_input"
         app:layout_constraintTop_toBottomOf="@+id/interSection_Name" />
 
-
-    <TextView
-        android:id="@+id/ICIDin"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="8dp"
-        android:layout_marginTop="8dp"
-        android:layout_weight="1"
-        android:inputType="textCapWords"
-        android:text="ICID"
-        android:textSize="25sp"
-        app:layout_constraintStart_toEndOf="@+id/lightColor"
-        app:layout_constraintTop_toBottomOf="@+id/intersection_input" />
-
-    <TextView
-        android:id="@+id/times"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="8dp"
-        android:layout_marginTop="8dp"
-        android:layout_weight="1"
-        android:inputType="textCapWords"
-        android:text="次數"
-        android:textSize="25sp"
-        android:visibility="visible"
-        app:layout_constraintStart_toEndOf="@+id/ICIDin"
-        app:layout_constraintTop_toBottomOf="@+id/phaseid_input" />
 
     <TextView
         android:id="@+id/angle"
@@ -149,8 +124,8 @@
         android:inputType="textCapWords"
         android:text="方位角"
         android:textSize="25sp"
-        android:visibility="invisible"
-        app:layout_constraintStart_toEndOf="@+id/times"
+        android:visibility="visible"
+        app:layout_constraintStart_toEndOf="@+id/Speed"
         app:layout_constraintTop_toBottomOf="@+id/phaseid_input" />
 
     <TextView
@@ -166,7 +141,7 @@
         android:textStyle="bold"
         android:visibility="visible"
         app:layout_constraintStart_toEndOf="@+id/lightColor"
-        app:layout_constraintTop_toBottomOf="@+id/ICIDin" />
+        app:layout_constraintTop_toBottomOf="@+id/intersection_input" />
 
 
 </android.support.constraint.ConstraintLayout>
