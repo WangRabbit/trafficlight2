@@ -1,11 +1,11 @@
 
 package android.trafficlight2;
 
-import java.io.IOException;
-
 import java.util.Calendar;
 import java.util.ArrayList;
 
+import android.content.DialogInterface;
+import android.content.res.Configuration;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.support.annotation.NonNull;
@@ -17,16 +17,9 @@ import org.apache.http.message.BasicNameValuePair;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.w3c.dom.Text;
 
 import android.Manifest;
-import android.app.Activity;
-import android.bluetooth.BluetoothAdapter;
-import android.bluetooth.BluetoothDevice;
-import android.bluetooth.BluetoothSocket;
 import android.content.pm.PackageManager;
-import android.graphics.drawable.Drawable;
-import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.app.ProgressDialog;
 import android.content.Context;
@@ -36,66 +29,45 @@ import android.location.Location;
 import android.location.LocationManager;
 import android.os.AsyncTask;
 import android.os.CountDownTimer;
-import android.os.Looper;
 import android.provider.Settings;
-import android.support.v4.app.ActivityCompat;
-import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
-import android.text.format.DateFormat;
+import android.support.v7.widget.Toolbar;
+import android.trafficlight2.ecoDriving.CountDown;
+import android.trafficlight2.ecoDriving.LoadSignalInformation;
+import android.trafficlight2.ecoDriving.LoadSignalInformationResult;
+import android.trafficlight2.ecoDriving.Position;
+import android.trafficlight2.ecoDriving.RSU;
+import android.trafficlight2.ecoDriving.RSUstatus;
 import android.util.Log;
-import android.view.View;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
-import android.widget.ListAdapter;
-import android.widget.ScrollView;
-import android.widget.SimpleAdapter;
 import android.widget.TextView;
 import android.widget.Toast;
-import android.os.Handler;
-import android.os.Message;
 import android.location.LocationListener;
-import android.location.LocationManager;
-import android.os.Bundle;
-import android.widget.TextView;
-import android.widget.Toast;
-import java.text.SimpleDateFormat;
+
 import java.util.List;
-import java.util.Timer;
-import java.util.Timer;
-import java.util.TimerTask;
-import java.util.UUID;
+import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 
-import static android.Manifest.permission.*;
-import static android.R.attr.countDown;
-import static android.R.attr.id;
-import static android.R.attr.offset;
-import static android.R.attr.tag;
-import static android.R.attr.y;
-import static android.icu.lang.UCharacter.GraphemeClusterBreak.L;
-import static android.icu.lang.UCharacter.GraphemeClusterBreak.T;
 import static android.media.CamcorderProfile.get;
-import static android.os.Build.ID;
-import static android.os.Build.VERSION_CODES.M;
-import static android.os.Build.VERSION_CODES.N;
 import static android.trafficlight2.R.drawable.green;
 import static android.trafficlight2.R.drawable.no_light;
 import static android.trafficlight2.R.drawable.red;
 import static android.trafficlight2.R.drawable.yello;
 
-import static android.trafficlight2.R.id.countDown_sec;
-import static android.trafficlight2.R.id.intersection_input;
 import static android.trafficlight2.R.id.lightColor;
-import static android.trafficlight2.R.id.location;
-import static android.trafficlight2.R.id.time;
 import static android.util.Log.d;
 import static android.util.Log.e;
 
 
-public class MainActivity extends AppCompatActivity implements LocationListener {
+public class MainActivity extends AppCompatActivity implements LocationListener{
 
     private static final int REQUEST_EXTERNAL_ACCESS_FINE_LOCATION = 0;
     private static final int REQUEST_EXTERNAL_ACCESS_COARSE_LOCATION = 0;
@@ -158,9 +130,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
 
     String deviceID, icID, icName;
     int green_sec;
-    int[] s_green_sec = {0,0,0,0,0,0}; //最多6個分相
-    int[] s_yellow_sec = {0,0,0,0,0,0};
-    int[] s_allred_sec = {0,0,0,0,0,0};
+
     int yellow_sec;
     int allred_sec;
     int cycle;
@@ -172,14 +142,11 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
 
    // public int timeLength;
 
-    static int[] countStatus = {0,0,0,0,0,0};
-    static int countStatusIndex = 0;
 
     TextView latituteField;
     TextView longitudeField;
 
-    TextView ICIDin;
-    TextView times;
+
     TextView TextAngle;
     TextView TextSpeed;
     TextView countdown_txt;
@@ -187,12 +154,6 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     EditText intersection_input;
     EditText direction_input;
 
-    /* TextView 時制資訊*/
-    TextView G1,Y1,AR1,R1;
-    TextView G2,Y2,AR2,R2;
-    TextView G3,Y3,AR3,R3;
-    TextView G4,Y4,AR4,R4;
-    TextView CYCLE,OFFSET,ORDER,TIMELENGTH,PLANID,HOUR,MIN,SEC;
 
 
     int hour, min, sec;
@@ -207,11 +168,14 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
                          {0, 0, 0, 0, 15, 45, 45, 30, 15, 00, 00, 45, 00, 15, 00}};
 
     Position pp;
+    RSU rsu;
 
 
 
     public void ActiveComponent() {
-        pp = new Position();
+        pp = new Position(MainActivity.this);
+        rsu = new RSU(MainActivity.this);;
+
 
         intersection_input = (EditText) findViewById(R.id.intersection_input);
         direction_input = (EditText) findViewById(R.id.phaseid_input);
@@ -219,8 +183,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         latituteField = (TextView) findViewById(R.id.gps_x);
         longitudeField = (TextView) findViewById(R.id.gps_y);
 
-        ICIDin = (TextView) findViewById(R.id.ICIDin);
-        times = (TextView) findViewById(R.id.times);
+
         TextAngle = (TextView) findViewById(R.id.angle);
         TextSpeed = (TextView) findViewById(R.id.Speed);
         countdown_txt = (TextView) findViewById(R.id.countDown_sec);
@@ -233,6 +196,57 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     }
 
     @Override
+    /*建立toolBarMenu*/
+    public boolean onCreateOptionsMenu(Menu menu) {
+        MenuInflater inflater = getMenuInflater();
+        inflater.inflate(R.menu.menu_main, menu);
+        return true;
+    }
+
+    @Override
+    /*建立toolBarMenu設定*/
+    public boolean onOptionsItemSelected(MenuItem item) {
+
+        // 取得點選項目的id
+        int id = item.getItemId();
+
+        // 依照id判斷點了哪個項目並做相應事件
+        if (id == R.id.action_settings) {
+            confirmFirstCheck();
+        }
+        else if (id == R.id.action_help) {
+            // 按下「使用說明」要做的事
+            AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity .this);
+            builder.setMessage("綠燈 " + String.valueOf(green_sec)
+                    +" 黃燈 "+String.valueOf(yellow_sec)
+                    +" 紅燈 "+ String.valueOf(red_sec) + "\n"
+                    +"週期 "+ String.valueOf(cycle) +" 燈態 "+ phaseOrder +" 時制 " + planID + "\n" + " 分段 " + String.valueOf(segment)
+                    +" 分相數 " + String.valueOf(phaseCount)  + "\n"
+                    +" 路口ID: " + String.valueOf(ICID) + "方向: " + String.valueOf(directionResult) + "\n"
+                    +" 路口名稱: " + String.valueOf(icName) + "\n"
+                    +"------偵測資訊-------"+"\n"
+                    +" 偵測路口ID: " + t1_ICID + " 偵測次數: " + ICID_xxx_Count
+
+            )
+                    .setTitle("時制內容")
+                    .setPositiveButton("OK",null)
+                    .show();
+
+            return true;
+
+        }
+        else if (id == R.id.action_about) {
+            // 按下「關於」要做的事
+            Toast.makeText(this, "關於", Toast.LENGTH_SHORT).show();
+            return true;
+        }
+
+        return super.onOptionsItemSelected(item);
+    }
+
+
+
+    @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         switch(requestCode) {
             case REQUEST_EXTERNAL_INTERNET:
@@ -241,10 +255,18 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     }
 
     @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+    }
+
+    @Override
     protected void onCreate(Bundle savedInstanceState) {
 
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        Toolbar toolbar = (Toolbar) findViewById(R.id.toolBar);
+        setSupportActionBar(toolbar);
 
         ActiveComponent(); //宣告所有元件
 
@@ -265,54 +287,21 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
 
         }
 
-        btnShowCountdown = (Button) findViewById(location);
 
         ConnectivityManager mConnectivityManager = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
         NetworkInfo mNetworkInfo = mConnectivityManager.getActiveNetworkInfo();
         if (mNetworkInfo == null || !mNetworkInfo.isConnected()) {
-            new AlertDialog.Builder(this).setMessage("請檢查網路是否已連線！連線後請重新啟動本APP方能使用").setPositiveButton("OK",null).show();
-            btnShowCountdown.setEnabled(false);
+            new AlertDialog.Builder(this).setMessage("請檢查網路是否已連線！連線後請重新啟動本APP方能使用").setPositiveButton("OK", new DialogInterface.OnClickListener() {
+                @Override
+                public void onClick(DialogInterface dialog, int which) {
+                    System.exit(0);
+                }
+            }).show();
+
         } else {
             pp.startGetICIDList(); //下載ICIDlist
         }
 
-
-        btnShowCountdown.setOnClickListener(new View.OnClickListener() {
-
-            @Override
-            public void onClick(View view) {
-
-                ICID = intersection_input.getText().toString();
-                inputDirection = direction_input.getText().toString(); //現在輸入的是方向性
-
-
-                if (!ICID.equals(gICID) && !ICID.equals("xxx")) { //條件一: ICID不一樣 或 方向不一樣(20180811拿掉，會有頻繁送資訊問題) 且不可為xxx
-                    if (inputDirection.equals("1") || inputDirection.equals("2") || inputDirection.equals("3")  ||inputDirection.equals("4") || inputDirection.equals("0") || inputDirection.equals("5") || inputDirection.equals("6")  || inputDirection.equals("7")) {
-
-                            gICID = ICID; //檢測重複用
-
-                            if (countFlag == 1) { //若有人在倒數，要先把原本的停掉
-                                cc.cancel();
-                                System.out.println("CountFlag = " + countFlag);
-                                countFlag = 0;
-                            }
-
-                            CountDown c1 = new CountDown(); //new countdown物件
-                            weekday = c1.getWeekday(); //調用CountDown物件中的weekday方法
-                            segment = c1.calSegment(); //調用CountDown物件中的calSegment方法，計算分段後回傳
-
-                            Log.e("threaddFlag ", "" + threadFlag);
-                            if (threadFlag == 0) { //有人在查詢時，不可以再次重複要求查詢
-                                Log.e("EXECUTING, threaddFlag ", "" + threadFlag);
-                                threadFlag = 1; //1表示查詢中 0表示沒有在查詢
-                                new LoadAllProducts().execute();
-                            }
-                        }
-                    } else if (ICID.equals("xxx")) {
-                    count(999999); //呼叫count函數指定輸入999999 顯示無路口
-                }
-            }
-        });
 
 
         if (permission_coarseLocation != PackageManager.PERMISSION_GRANTED || permission_fineLocation != PackageManager.PERMISSION_GRANTED ) {
@@ -401,10 +390,9 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
           t1_ICID = pp.calSquareRange();
 
           gpsSpeed = (int) (location.getSpeed()*3.6) ; //目前速度功能
-
+          gpsSpeed = gpsSpeed + 5; //速度校正
           TextSpeed.setText(gpsSpeed +"km/hr");
 
-          ICIDin.setText(t1_ICID);
 
               if (t1_ICID.equals(t2_ICID) && t1_ICID.equals(t3_ICID)) { //多次送同樣的才認定是最後正確的ICID
                   if (!t1_ICID.equals("xxx")) {
@@ -413,13 +401,11 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
                       direction_input.setText(directionResult);
                       intersection_input.setText(t1_ICID);
 
-
-                      btnShowCountdown.callOnClick();
-
+                      confirmFirstCheck();
                   } else {
                       if (ICID_xxx_Count == 5) {
                           intersection_input.setText("xxx");
-                          btnShowCountdown.callOnClick();
+                          confirmFirstCheck();
                           ICID_xxx_Count = 0;
                       } else {
                           ICID_xxx_Count++;
@@ -433,7 +419,6 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
                   t2_ICID = t1_ICID;
               }
 
-        times.setText(String.valueOf(ICID_xxx_Count)); //顯示計數次數
 
     }
 
@@ -457,32 +442,48 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     }
 
 
-    /*
-    public void CleanSetText() {
-        G1.setText(null);
-        G2.setText(null);
-        G3.setText(null);
-        G4.setText(null);
-        Y1.setText(null);
-        Y2.setText(null);
-        Y3.setText(null);
-        Y4.setText(null);
-        AR1.setText(null);
-        AR2.setText(null);
-        AR3.setText(null);
-        AR4.setText(null);
-        R1.setText(null);
-        R2.setText(null);
-        R3.setText(null);
-        R4.setText(null);
-    } */
+    public void confirmFirstCheck() {
+        ICID = intersection_input.getText().toString();
+        inputDirection = direction_input.getText().toString(); //現在輸入的是方向性
+
+        if (!ICID.equals(gICID) && !ICID.equals("xxx")) { //條件一: ICID不一樣 或 方向不一樣(20180811拿掉，會有頻繁送資訊問題) 且不可為xxx
+            if (inputDirection.equals("1") || inputDirection.equals("2") || inputDirection.equals("3")  ||inputDirection.equals("4") || inputDirection.equals("0") || inputDirection.equals("5") || inputDirection.equals("6")  || inputDirection.equals("7")) {
+
+                gICID = ICID; //檢測重複用
+
+                if (countFlag == 1) { //若有人在倒數，要先把原本的停掉
+                    cc.cancel();
+                    System.out.println("CountFlag = " + countFlag);
+                    countFlag = 0;
+                }
+
+                CountDown c1 = new CountDown(); //new countdown物件
+                weekday = c1.getWeekday(); //調用CountDown物件中的weekday方法
+                segment = c1.calSegment(); //調用CountDown物件中的calSegment方法，計算分段後回傳
+
+                Log.e("threaddFlag ", "" + threadFlag);
+                if (threadFlag == 0) { //有人在查詢時，不可以再次重複要求查詢
+                    Log.e("EXECUTING, threadFlag ", "" + threadFlag);
+                    threadFlag = 1; //1表示查詢中 0表示沒有在查詢
+                    getSignal();
+                }
+            }
+        } else if (ICID.equals("xxx")) {
+            count(999999); //呼叫count函數指定輸入999999 顯示無路口
+        }
+    }
+
 
     CountDownTimer cc;
-    public void count(int number) {
 
+    static int[] countStatus = {0,0,0,0,0,0};
+    static int countStatusIndex = 0;
+
+    public void count(int number) {
+        TextView interSection_txt = (TextView) findViewById(R.id.interSection_Name);
 
         if (number == 999999) { //查詢失敗或錯誤，顯示無路口
-            TextView interSection_txt = (TextView) findViewById(R.id.interSection_Name);
+
             if (cc!=null) { //確認物件cc存在才做取消，否則會有null exception 錯誤
                 cc.cancel();
             }
@@ -493,6 +494,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         } else if (number == 111111) {
 
             lightColor_img.setImageResource(no_light);
+            interSection_txt.setText("");
             countdown_txt.setText("閃光");
 
         } else {
@@ -503,6 +505,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
                     public void onTick(long millisUntilFinished) {
                         countFlag = 1;
                         threadFlag = 0;
+                        System.out.println("lightColor_img"+lightColor_img);
                         if (countStatusIndex == 0 || countStatusIndex == 3) {
                             lightColor_img.setImageResource(green);
                         } else if (countStatusIndex == 1 || countStatusIndex == 4) {
@@ -540,563 +543,638 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
             }
         }
 
+    public void getSignal() {
 
-    //正常:第一分相
-    public void calTime_First (int g_timeLength) {
+        TextView interSection = (TextView) findViewById(R.id.interSection_Name);
+        lightColor_img.setImageResource(no_light);
+        interSection.setText("取得中");
+        countdown_txt.setText("取得中");
 
-        if (g_timeLength < green_sec) {
-
-            lightColor_img.setImageResource(green);
-            timer_green = green_sec - g_timeLength;
-
-            countStatus[3] = timer_green; //使用[3]表第一次運行要用不一樣的秒數
-            countStatusIndex = 3;
-
-            count(countStatus[countStatusIndex]);
-
-        } else if (green_sec <= g_timeLength && g_timeLength < (yellow_sec + green_sec)) {
-
-            lightColor_img.setImageResource(yello);
-            timer__yellow = (yellow_sec + green_sec) - g_timeLength;
-
-            countStatus[4] = timer__yellow; //使用[4]表第一次運行要用不一樣的秒數
-            countStatusIndex = 4;
-
-            count(countStatus[countStatusIndex]);
-
-
-        } else if ((green_sec + yellow_sec) <= g_timeLength) {
-
-            lightColor_img.setImageResource(red);
-            timer_red = cycle - g_timeLength;
-
-            countStatus[5] = timer_red; //使用[5]表第一次運行要用不一樣的秒數
-            countStatusIndex = 5;
-
-            count(countStatus[countStatusIndex]);
-        }
-
-        /*SetText
-        CleanSetText();
-        G1.setText(String.valueOf(green_sec));
-        Y1.setText(" "+String.valueOf(yellow_sec));
-        AR1.setText(" "+String.valueOf(allred_sec));
-        R1.setText(" "+String.valueOf(red_sec));
-        TIMELENGTH.setText(" "+String.valueOf(g_timeLength));*/
-
-    }
-    //正常:第二分相
-    public void calTime_middle_2 (int g_timeLength, int g_phaseNUM) {
-
-        if (g_timeLength < (s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]+s_allred_sec[g_phaseNUM])) {
-
-            //lightColor_img.setImageResource(red);
-            timer_red = (s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM] + s_allred_sec[g_phaseNUM]) - g_timeLength;
-            d("特殊紅燈秒數 ", "" + (s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]));
-            d("倒數 ", "" + timer_red);
-            d("s_green_sec ", "" + s_green_sec[g_phaseNUM]);
-            d("s_yellow_sec ", "" + s_yellow_sec[g_phaseNUM]);
-            d("s_allred_sec ", "" + s_allred_sec[g_phaseNUM]);
-
-            countStatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
-            countStatusIndex = 5;
-            count(countStatus[countStatusIndex]);
-
-
-        } else if ((s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM] + s_allred_sec[g_phaseNUM]) <= g_timeLength && g_timeLength < (s_green_sec[g_phaseNUM] + green_sec + s_yellow_sec[g_phaseNUM] + s_allred_sec[g_phaseNUM])) {
-
-           // lightColor_img.setImageResource(green);
-            timer_green = (s_green_sec[g_phaseNUM] + green_sec + s_yellow_sec[g_phaseNUM] + s_allred_sec[g_phaseNUM]) - g_timeLength;
-
-            d("綠燈秒數 ", "" + green_sec);
-            d("倒數 ", "" + timer_green);
-            d("s_green_sec ", "" + s_green_sec[g_phaseNUM]);
-            d("s_yellow_sec ", "" + s_yellow_sec[g_phaseNUM]);
-            d("s_allred_sec ", "" + s_allred_sec[g_phaseNUM]);
-
-            countStatus[3] = timer_green; //使用[3]表第一次運行要用不一樣的秒數
-            countStatusIndex = 3;
-            count(countStatus[countStatusIndex]);
-
-
-        } else if ((s_green_sec[g_phaseNUM] + green_sec + s_yellow_sec[g_phaseNUM]+ s_allred_sec[g_phaseNUM]) <= g_timeLength && g_timeLength < (s_green_sec[g_phaseNUM] + green_sec + s_yellow_sec[g_phaseNUM] + yellow_sec + s_allred_sec[g_phaseNUM])) {
-
-           // lightColor_img.setImageResource(yello);
-            timer__yellow = (s_green_sec[g_phaseNUM] + green_sec + s_yellow_sec[g_phaseNUM] + yellow_sec + s_allred_sec[g_phaseNUM]) - g_timeLength;
-            d("黃燈秒數 ", "" + yellow_sec);
-            d("倒數 ", "" + timer__yellow);
-            d("s_green_sec ", "" + s_green_sec[g_phaseNUM]);
-            d("s_yellow_sec ", "" + s_yellow_sec[g_phaseNUM]);
-            d("s_allred_sec ", "" + s_allred_sec[g_phaseNUM]);
-
-            countStatus[4] = timer__yellow; //使用[3]表第一次運行要用不一樣的秒數
-            countStatusIndex = 4;
-            count(countStatus[countStatusIndex]);
-
-        } else if ((s_green_sec[g_phaseNUM] + green_sec + s_yellow_sec[g_phaseNUM] + yellow_sec + s_allred_sec[g_phaseNUM]) <= g_timeLength) {
-
-           // lightColor_img.setImageResource(red);
-           // timer_red = cycle - g_timeLength;
-
-            g_timeLength = g_timeLength - (s_green_sec[g_phaseNUM] + green_sec + s_yellow_sec[g_phaseNUM] + yellow_sec + s_allred_sec[g_phaseNUM]);
-            timer_red = red_sec - g_timeLength;
-
-            d("紅燈秒數 ", "" + red_sec);
-            d("倒數 ", "" + timer_red);
-            d("s_green_sec ", "" + s_green_sec[g_phaseNUM]);
-            d("s_yellow_sec ", "" + s_yellow_sec[g_phaseNUM]);
-            d("s_allred_sec ", "" + s_allred_sec[g_phaseNUM]);
-
-            countStatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
-            countStatusIndex = 5;
-            count(countStatus[countStatusIndex]);
-        }
-
-        /*SetText
-        CleanSetText();
-        G2.setText(String.valueOf(green_sec));
-        Y2.setText(" "+String.valueOf(yellow_sec));
-        AR2.setText(" "+String.valueOf(allred_sec));
-        R2.setText(" "+String.valueOf(red_sec));
-        TIMELENGTH.setText(" "+String.valueOf(g_timeLength));*/
+        rsu.start(ICID,inputDirection,segment,weekday);
+        Log.e("1++++++rsuStatus = ",String.valueOf(rsu.RSU_status));
+        showSignal();
 
     }
 
-    //特殊:phase 1 早開的分相
-    public void calTime_earlyOPEN_first (int g_timeLength, int g_phaseNUM) {
 
-        if (g_timeLength < (green_sec + s_green_sec[g_phaseNUM])) {
+    public void showSignal() {
 
-          //  lightColor_img.setImageResource(green);
+        Toast.makeText(this, "show signal",Toast.LENGTH_LONG).show();
 
-            timer_green = green_sec + s_green_sec[g_phaseNUM] - g_timeLength;
 
-            countStatus[3] = timer_green; //使用[3]表第一次運行要用不一樣的秒數
-            countStatusIndex = 3;
+        if (rsu.RSU_status){
 
-            Log.e("phase 1 早開的分相", "");
-            Log.d("綠燈秒數 ", "green_sec" + green_sec + "s_green_sec" + s_green_sec[g_phaseNUM]);
-            d("倒數 ", "" + timer_green);
-
-            d("countStatusIndex", "" + countStatusIndex);
-            d("countStatus", "" + countStatus[countStatusIndex]);
+            countStatusIndex = rsu.getCountStatusIndex();
+            countStatus = rsu.getCountStatus();
             count(countStatus[countStatusIndex]);
 
-
-        } else if ((green_sec + s_green_sec[g_phaseNUM]) <= g_timeLength && g_timeLength < (green_sec + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM])) {
-
-          //  lightColor_img.setImageResource(yello);
-            timer__yellow = (green_sec + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]) - g_timeLength;
-
-            countStatus[4] = timer__yellow; //使用[3]表第一次運行要用不一樣的秒數
-            countStatusIndex = 4;
-
-            Log.e("phase 1 早開的分相", "");
-            d("黃燈秒數 ", "" + yellow_sec);
-            d("倒數 ", "" + timer__yellow);
-            d("countStatusIndex", "" + countStatusIndex);
-            d("countStatus", "" + countStatus[countStatusIndex]);
-
-            count(countStatus[countStatusIndex]);
-
-
-        } else if ((green_sec + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]) <= g_timeLength) {
-
-          //  lightColor_img.setImageResource(red);
-            timer_red = cycle - g_timeLength;
-
-            Log.e("phase 1 早開的分相", "");
-            d("紅燈秒數 ", "" + red_sec);
-            d("倒數 ", "" + timer_red);
-
-            countStatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
-            countStatusIndex = 5;
-            count(countStatus[countStatusIndex]);
-        }
-    }
-
-    //特殊:phase 1 遲閉
-    public void calTime_lateCLOSE_first (int g_timeLength, int g_phaseNUM) { //g_phaseNUM 要參照的
-
-        if (g_timeLength < (green_sec + yellow_sec + s_green_sec[g_phaseNUM])) {
-
-            timer_green = (green_sec + yellow_sec + s_green_sec[g_phaseNUM]) - g_timeLength;
-
-            countStatus[3] = timer_green; //使用[3]表第一次運行要用不一樣的秒數
-            countStatusIndex = 3;
-
-            d("綠燈秒數 ", "" + green_sec);
-            d("倒數 ", "" + timer_green);
-
-            d("countStatusIndex", "" + countStatusIndex);
-            d("countStatus", "" + countStatus[countStatusIndex]);
-            count(countStatus[countStatusIndex]);
-
-
-        } else if ((green_sec + yellow_sec + s_green_sec[g_phaseNUM]) <= g_timeLength && g_timeLength < (green_sec + yellow_sec + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM])) {
-
-            lightColor_img.setImageResource(yello);
-            timer__yellow = (green_sec + yellow_sec + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]) - g_timeLength;
-
-            countStatus[4] = timer__yellow; //使用[3]表第一次運行要用不一樣的秒數
-            countStatusIndex = 4;
-
-            d("黃燈秒數 ", "" + yellow_sec);
-            d("倒數 ", "" + timer__yellow);
-            d("countStatusIndex", "" + countStatusIndex);
-            d("countStatus", "" + countStatus[countStatusIndex]);
-
-            count(countStatus[countStatusIndex]);
-
-
-        } else if ((green_sec + yellow_sec + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]) <= g_timeLength) {
-
-            lightColor_img.setImageResource(red);
-            timer_red = cycle - g_timeLength;
-            d("紅燈秒數 ", "" + red_sec);
-            d("倒數 ", "" + timer_red);
-
-            countStatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
-            countStatusIndex = 5;
-            count(countStatus[countStatusIndex]);
-        }
-    }
-
-    //特殊:中間的phase  遲閉
-    public void calTime_lateCLOSE_middle (int g_timeLength, int g_phaseNUM) {
-
-        if (g_timeLength < s_green_sec[0] ) {
-
-        //    lightColor_img.setImageResource(red);
-            timer_red = s_green_sec[0] - g_timeLength;
-            d("倒數 ", "" + timer_red);
-
-
-            countStatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
-            countStatusIndex = 5;
-            count(countStatus[countStatusIndex]);
-
-
-        } else if (s_green_sec[0] <= g_timeLength && g_timeLength < (s_green_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM] + green_sec)) {
-
-       //     lightColor_img.setImageResource(green);
-            timer_green = (s_green_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM] + green_sec) - g_timeLength;
-            d("綠燈秒數 ", "" + green_sec);
-            d("倒數 ", "" + timer_green);
-            d("s_green_sec ", "" + s_green_sec[g_phaseNUM]);
-            d("s_yellow_sec ", "" + s_yellow_sec[g_phaseNUM]);
-            d("s_allred_sec ", "" + s_allred_sec[g_phaseNUM]);
-
-            countStatus[3] = timer_green; //使用[3]表第一次運行要用不一樣的秒數
-            countStatusIndex = 3;
-            count(countStatus[countStatusIndex]);
-
-
-        } else if ((s_green_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM] + green_sec) <= g_timeLength && g_timeLength < (s_green_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM] + green_sec + yellow_sec)) {
-
-         //   lightColor_img.setImageResource(yello);
-            timer__yellow = (s_green_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM] + green_sec + yellow_sec) - g_timeLength;
-          //  Log.d("黃燈秒數 ", "" + yellow_sec);
-            d("倒數 ", "" + timer__yellow);
-            d("s_green_sec ", "" + s_green_sec[g_phaseNUM]);
-            d("s_yellow_sec ", "" + s_yellow_sec[g_phaseNUM]);
-            d("s_allred_sec ", "" + s_allred_sec[g_phaseNUM]);
-
-            countStatus[4] = timer__yellow; //使用[3]表第一次運行要用不一樣的秒數
-            countStatusIndex = 4;
-            count(countStatus[countStatusIndex]);
-
-        } else if ((s_green_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM] + green_sec + yellow_sec) <= g_timeLength) {
-
-       //     lightColor_img.setImageResource(red);
-            timer_red = cycle - g_timeLength;
-            d("紅燈秒數 ", "" + red_sec);
-            d("倒數 ", "" + timer_red);
-            d("s_green_sec ", "" + s_green_sec[g_phaseNUM]);
-            d("s_yellow_sec ", "" + s_yellow_sec[g_phaseNUM]);
-            d("s_allred_sec ", "" + s_allred_sec[g_phaseNUM]);
-
-            countStatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
-            countStatusIndex = 5;
-            count(countStatus[countStatusIndex]);
-        }
-    }
-
-    //特殊:中間的phase  早開
-    public void calTime_earlyOPEN_middle (int g_timeLength, int g_phaseNUM) {
-
-        if (g_timeLength < red_sec ) {
-
-            lightColor_img.setImageResource(red);
-            timer_red = red_sec - g_timeLength;
-            d("倒數 ", "" + timer_red);
-
-
-            countStatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
-            countStatusIndex = 5;
-            count(countStatus[countStatusIndex]);
-
-
-        } else if (red_sec <= g_timeLength && g_timeLength < (red_sec+ s_green_sec[g_phaseNUM] + green_sec + yellow_sec)) {
-
-            lightColor_img.setImageResource(green);
-            timer_green = (red_sec+ s_green_sec[g_phaseNUM] + green_sec + yellow_sec) - g_timeLength;
-            d("綠燈秒數 ", "" + green_sec);
-            d("倒數 ", "" + timer_green);
-
-            countStatus[3] = timer_green; //使用[3]表第一次運行要用不一樣的秒數
-            countStatusIndex = 3;
-            count(countStatus[countStatusIndex]);
-
-
-        } else if ((red_sec+ s_green_sec[g_phaseNUM] + green_sec + yellow_sec) <= g_timeLength) {
-
-            lightColor_img.setImageResource(yello);
-            timer__yellow = cycle - g_timeLength;
-            //  Log.d("黃燈秒數 ", "" + yellow_sec);
-            d("倒數 ", "" + timer__yellow);
-            d("s_green_sec ", "" + s_green_sec[g_phaseNUM]);
-            d("s_yellow_sec ", "" + s_yellow_sec[g_phaseNUM]);
-            d("s_allred_sec ", "" + s_allred_sec[g_phaseNUM]);
-
-            countStatus[4] = timer__yellow; //使用[3]表第一次運行要用不一樣的秒數
-            countStatusIndex = 4;
-            count(countStatus[countStatusIndex]);
-        }
-    }
-
-    //正常:第三個分相
-    public void calTime_middle_3 (int g_timeLength, int g_phaseNUM) {
-
-        if (g_timeLength < (s_green_sec[0] + s_yellow_sec[0] + s_allred_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]+s_allred_sec[g_phaseNUM])) {
-
-     //       lightColor_img.setImageResource(red);
-            timer_red = (s_green_sec[0] + s_yellow_sec[0] + s_allred_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]+s_allred_sec[g_phaseNUM]) - g_timeLength;
-            d("特殊紅燈秒數 ", "" + (s_green_sec[0] + s_yellow_sec[0] + s_allred_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]+s_allred_sec[g_phaseNUM]));
-            d("倒數 ", "" + timer_red);
-
-            countStatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
-            countStatusIndex = 5;
-            count(countStatus[countStatusIndex]);
-
-        } else if ((s_green_sec[0] + s_yellow_sec[0] + s_allred_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]+s_allred_sec[g_phaseNUM]) <= g_timeLength && g_timeLength < (s_green_sec[0] + s_yellow_sec[0] + s_allred_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]+s_allred_sec[g_phaseNUM] + green_sec)) {
-
-       //     lightColor_img.setImageResource(green);
-            timer_green = (s_green_sec[0] + s_yellow_sec[0] + s_allred_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]+s_allred_sec[g_phaseNUM] + green_sec) - g_timeLength;
-            d("特殊綠燈秒數 ", "" + green_sec);
-            d("倒數 ", "" + timer_green);
-
-            countStatus[3] = timer_green; //使用[3]表第一次運行要用不一樣的秒數
-            countStatusIndex = 3;
-            count(countStatus[countStatusIndex]);
-
-
-        } else if ((s_green_sec[0] + s_yellow_sec[0] + s_allred_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]+s_allred_sec[g_phaseNUM] + green_sec) <= g_timeLength && g_timeLength < (s_green_sec[0] + s_yellow_sec[0] + s_allred_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]+s_allred_sec[g_phaseNUM] + green_sec + yellow_sec)) {
-
-       //     lightColor_img.setImageResource(yello);
-            timer__yellow = (s_green_sec[0] + s_yellow_sec[0] + s_allred_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]+s_allred_sec[g_phaseNUM] + green_sec + yellow_sec) - g_timeLength;
-            d("黃燈秒數 ", "" + yellow_sec);
-            d("倒數 ", "" + timer__yellow);
-
-            countStatus[4] = timer__yellow; //使用[3]表第一次運行要用不一樣的秒數
-            countStatusIndex = 4;
-            count(countStatus[countStatusIndex]);
-
-        } else if ((s_green_sec[0] + s_yellow_sec[0] + s_allred_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]+s_allred_sec[g_phaseNUM] + green_sec + yellow_sec ) <= g_timeLength) {
-
-       //     lightColor_img.setImageResource(red);
-            g_timeLength = g_timeLength - (s_green_sec[0] + s_yellow_sec[0] + s_allred_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]+s_allred_sec[g_phaseNUM] + green_sec + yellow_sec);
-            timer_red = red_sec - g_timeLength;
-       //     timer_red = cycle - g_timeLength;
-            d("紅燈秒數 ", "" + red_sec);
-            d("倒數 ", "" + timer_red);
-
-            countStatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
-            countStatusIndex = 5;
-            count(countStatus[countStatusIndex]);
-        }
-
-        /*SetText*/
-
-    }
-
-    //正常:最後一個分相
-    public void calTime_Last(int g_timeLength) {
-        if (g_timeLength < (red_sec - allred_sec)) {
-
-    //        lightColor_img.setImageResource(red);
-            timer_red = red_sec - allred_sec - g_timeLength;
-            d("紅燈秒數 ", "" + red_sec);
-            d("倒數 ", "" + timer_red);
-
-            countStatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
-            countStatusIndex = 5;
-            count(countStatus[countStatusIndex]);
-
-        } else if ((red_sec - allred_sec) <= g_timeLength && g_timeLength < ((red_sec - allred_sec) + green_sec)) {
-
-      //      lightColor_img.setImageResource(green);
-            timer_green = ((red_sec - allred_sec) + green_sec) - g_timeLength;
-            d("綠燈秒數 ", "" + green_sec);
-            d("倒數 ", "" + timer_green);
-
-            countStatus[3] = timer_green; //使用[3]表第一次運行要用不一樣的秒數
-            countStatusIndex = 3;
-            count(countStatus[countStatusIndex]);
-
-
-        } else if ( ((red_sec - allred_sec) + green_sec) <= g_timeLength && g_timeLength < ((red_sec - allred_sec) + green_sec + yellow_sec)) {
-
-      //      lightColor_img.setImageResource(yello);
-            timer__yellow = ((red_sec - allred_sec) + green_sec + yellow_sec) - g_timeLength;
-            d("黃燈秒數 ", "" + yellow_sec);
-            d("倒數 ", "" + timer__yellow);
-
-            countStatus[4] = timer__yellow; //使用[3]表第一次運行要用不一樣的秒數
-            countStatusIndex = 4;
-            count(countStatus[countStatusIndex]);
-
-        } else if ( ((red_sec - allred_sec) + green_sec + yellow_sec) <= g_timeLength ) {
-            g_timeLength = g_timeLength - ((red_sec - allred_sec) + green_sec + yellow_sec);
-            timer_red = red_sec - g_timeLength;
-
-    //        lightColor_img.setImageResource(red);
-            countStatus[5] = timer_red;
-            countStatusIndex = 5;
-            count(countStatus[countStatusIndex]);
-        }
-
-        /*SetText
-        CleanSetText();
-        G4.setText(String.valueOf(green_sec));
-        Y4.setText(" "+String.valueOf(yellow_sec));
-        AR4.setText(" "+String.valueOf(allred_sec));
-        R4.setText(" "+String.valueOf(red_sec));
-        TIMELENGTH.setText(" "+String.valueOf(g_timeLength));*/
-
-    }
-
-    //特殊:最後一個分相遲閉
-    public void calTime_Last_lateCLOSE(int g_timeLength) {
-        if (g_timeLength < s_green_sec[0] + s_green_sec[1] + s_yellow_sec[1] ) {
-
-      //      lightColor_img.setImageResource(red);
-            timer_red = s_green_sec[0] + s_green_sec[1] + s_yellow_sec[1] - g_timeLength;
-            d("紅燈秒數 ", "" + red_sec);
-            d("倒數 ", "" + timer_red);
-
-            countStatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
-            countStatusIndex = 5;
-            count(countStatus[countStatusIndex]);
-
-        } else if (s_green_sec[0] + s_green_sec[1] + s_yellow_sec[1] <= g_timeLength && g_timeLength < (s_green_sec[0] + s_green_sec[1] + s_yellow_sec[1] + s_green_sec[2] + s_yellow_sec[2] + green_sec)) {
-
-      //      lightColor_img.setImageResource(green);
-            timer_green = (s_green_sec[0] + s_green_sec[1] + s_yellow_sec[1] + s_green_sec[2] + s_yellow_sec[2] + green_sec) - g_timeLength;
-            d("綠燈秒數 ", "" + green_sec);
-            d("倒數 ", "" + timer_green);
-
-            countStatus[3] = timer_green; //使用[3]表第一次運行要用不一樣的秒數
-            countStatusIndex = 3;
-            count(countStatus[countStatusIndex]);
-
-
-        } else if ((s_green_sec[0] + s_green_sec[1] + s_yellow_sec[1] + s_green_sec[2] + s_yellow_sec[2] + green_sec)  <= g_timeLength) {
-
-       //     lightColor_img.setImageResource(yello);
-            timer__yellow = cycle - g_timeLength;
-            d("黃燈秒數 ", "" + yellow_sec);
-            d("倒數 ", "" + timer__yellow);
-
-            countStatus[4] = timer__yellow; //使用[3]表第一次運行要用不一樣的秒數
-            countStatusIndex = 4;
-            count(countStatus[countStatusIndex]);
-
-        }
-    }
-
-    public void get_phase_theard() { //當時相數量 >= 3 需要其他分相資訊
-
-        Thread get_p1_threadd = new Thread() {
-            public void run() {
-                List<NameValuePair> s_params = new ArrayList<NameValuePair>();
-                s_params.add(new BasicNameValuePair("ICID", ICID));
-                s_params.add(new BasicNameValuePair("planID", planID));
-              //  s_params.add(new BasicNameValuePair("phaseID", g_phase));
-
-                JSONObject json = jParser.makeHttpRequest(url_S_getLightData, "GET", s_params);
-
-                try {
-                    // Checking for SUCCESS TAG
-                    final int success = json.getInt(TAG_SUCCESS);
-                 //   d("SUCCESS xxxxxx", "" + success);
-
-                    if (success == 1) {
-
-                        getPhase = json.getJSONArray(TAG_PRODUCTS);
-                        Log.e("getPhaseLength", "" + getPhase.length());
-
-                        for (i=0;i < 6 ; i++) { //先把陣列裡的都洗掉
-                            s_green_sec[i] = 0;
-                            s_allred_sec[i] = 0;
-                            s_yellow_sec[i] = 0;
-                        }
-
-                        for (i = 0; i < getPhase.length(); i++) {
-                            JSONObject s = getPhase.getJSONObject(i);
-                            // Storing each json item in variable
-                            d("phaseLength",""+getPhase.length());
-                            s_green_sec[i] = s.getInt(TAG_greentime);
-                            d("s_GREEN ", "num "+ i + "time " + s.getInt(TAG_greentime));
-                            s_yellow_sec[i] = s.getInt(TAG_YELLOW);
-                            d("s_yellow ", "num "+ i+"time " + s.getInt(TAG_YELLOW));
-                            s_allred_sec[i] = s.getInt(TAG_ALLRED);
-                            d("s_ALLred ", "num "+ i+"time " + s.getInt(TAG_ALLRED));
-                        }
-
-
-                    } else {
-                        runOnUiThread(new Runnable() {
-                            @Override
-                            public void run() {
-                                Toast.makeText(MainActivity.this, "錯誤碼" + success, Toast.LENGTH_LONG).show();
-                            }
-                        });
-                    }
-                } catch (JSONException e) {
-
-                }
+            for (i = 0; i <= 5; i++) {
+                Log.d("countStatus = ", String.valueOf(countStatus[i]));
             }
-        };
+            Log.d("countStatusIndex", String.valueOf(countStatusIndex));
 
-        get_p1_threadd.start();
-
-        try {
-            get_p1_threadd.join();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
+            threadFlag = 0;
+        } else {
+            count(111111);
+            threadFlag = 0;
         }
-    }
-
-    public void getTimeLength() {
-
-        Calendar c = Calendar.getInstance();
-        hour = c.get(Calendar.HOUR_OF_DAY);
-        min = c.get(Calendar.MINUTE);
-        sec = c.get(Calendar.SECOND);
-
-        timeLength = (((hour * 3600) + (min * 60) + sec) - ((startHour * 3600) + (startMin * 60))) - offset;
-        timeLength = timeLength % cycle;
-
-        /*SetText
-        HOUR.setText(String.valueOf(hour));
-        MIN.setText(" "+ String.valueOf(min));
-        SEC.setText(" "+ String.valueOf(sec));
-        TIMELENGTH.setText(" "+String.valueOf(timeLength));*/
 
     }
 
 
+
+
+    /*
+    @Override
+    public void signalResult(String[] planResult) {
+        if (planResult[13].equals("OK")) {
+
+            System.out.println("OK");
+            threadFlag = 0;
+
+        } else if (planResult[13].equals("Fail")) {
+
+            System.out.println("Fail");
+            Toast.makeText(MainActivity.this, "代號"+ICID+",方向"+inputDirection+"錯誤碼:"+ planResult[14],Toast.LENGTH_LONG).show();
+            threadFlag = 0;
+
+        } else {
+            System.out.println("Exception");
+            Toast.makeText(MainActivity.this, "發生例外事件 ICID = "+ ICID +"方向 = "+ inputDirection , Toast.LENGTH_LONG).show();
+            threadFlag = 0;
+        }
+
+        TextView interSection_txt = (TextView) findViewById(R.id.interSection_Name);
+
+        startHour = timeArray[0][segment - 1];
+        startMin = timeArray[1][segment - 1];
+
+        interSection_txt.setText(planResult[2]);
+
+        countStatus[0] = Integer.valueOf(planResult[4]);
+        countStatus[1] = Integer.valueOf(planResult[5]);
+        countStatus[2] = Integer.valueOf(planResult[13]);
+        Log.d("countStatus[0]",""+ countStatus[0]);
+        Log.d("countStatus[1]",""+ countStatus[1]);
+        Log.d("countStatus[2]",""+ countStatus[2]);
+
+    } */
+//    //正常:第一分相
+//    public void calTime_First (int g_timeLength) {
+//
+//        if (g_timeLength < green_sec) {
+//
+//            lightColor_img.setImageResource(green);
+//            timer_green = green_sec - g_timeLength;
+//
+//            countStatus[3] = timer_green; //使用[3]表第一次運行要用不一樣的秒數
+//            countStatusIndex = 3;
+//
+//            count(countStatus[countStatusIndex]);
+//
+//        } else if (green_sec <= g_timeLength && g_timeLength < (yellow_sec + green_sec)) {
+//
+//            lightColor_img.setImageResource(yello);
+//            timer__yellow = (yellow_sec + green_sec) - g_timeLength;
+//
+//            countStatus[4] = timer__yellow; //使用[4]表第一次運行要用不一樣的秒數
+//            countStatusIndex = 4;
+//
+//            count(countStatus[countStatusIndex]);
+//
+//
+//        } else if ((green_sec + yellow_sec) <= g_timeLength) {
+//
+//            lightColor_img.setImageResource(red);
+//            timer_red = cycle - g_timeLength;
+//
+//            countStatus[5] = timer_red; //使用[5]表第一次運行要用不一樣的秒數
+//            countStatusIndex = 5;
+//
+//            count(countStatus[countStatusIndex]);
+//        }
+//
+//        /*SetText
+//        CleanSetText();
+//        G1.setText(String.valueOf(green_sec));
+//        Y1.setText(" "+String.valueOf(yellow_sec));
+//        AR1.setText(" "+String.valueOf(allred_sec));
+//        R1.setText(" "+String.valueOf(red_sec));
+//        TIMELENGTH.setText(" "+String.valueOf(g_timeLength));*/
+//
+//    }
+//    //正常:第二分相
+//    public void calTime_middle_2 (int g_timeLength, int g_phaseNUM) {
+//
+//        if (g_timeLength < (s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]+s_allred_sec[g_phaseNUM])) {
+//
+//            //lightColor_img.setImageResource(red);
+//            timer_red = (s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM] + s_allred_sec[g_phaseNUM]) - g_timeLength;
+//            d("特殊紅燈秒數 ", "" + (s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]));
+//            d("倒數 ", "" + timer_red);
+//            d("s_green_sec ", "" + s_green_sec[g_phaseNUM]);
+//            d("s_yellow_sec ", "" + s_yellow_sec[g_phaseNUM]);
+//            d("s_allred_sec ", "" + s_allred_sec[g_phaseNUM]);
+//
+//            countStatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
+//            countStatusIndex = 5;
+//            count(countStatus[countStatusIndex]);
+//
+//
+//        } else if ((s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM] + s_allred_sec[g_phaseNUM]) <= g_timeLength && g_timeLength < (s_green_sec[g_phaseNUM] + green_sec + s_yellow_sec[g_phaseNUM] + s_allred_sec[g_phaseNUM])) {
+//
+//            // lightColor_img.setImageResource(green);
+//            timer_green = (s_green_sec[g_phaseNUM] + green_sec + s_yellow_sec[g_phaseNUM] + s_allred_sec[g_phaseNUM]) - g_timeLength;
+//
+//            d("綠燈秒數 ", "" + green_sec);
+//            d("倒數 ", "" + timer_green);
+//            d("s_green_sec ", "" + s_green_sec[g_phaseNUM]);
+//            d("s_yellow_sec ", "" + s_yellow_sec[g_phaseNUM]);
+//            d("s_allred_sec ", "" + s_allred_sec[g_phaseNUM]);
+//
+//            countStatus[3] = timer_green; //使用[3]表第一次運行要用不一樣的秒數
+//            countStatusIndex = 3;
+//            count(countStatus[countStatusIndex]);
+//
+//
+//        } else if ((s_green_sec[g_phaseNUM] + green_sec + s_yellow_sec[g_phaseNUM]+ s_allred_sec[g_phaseNUM]) <= g_timeLength && g_timeLength < (s_green_sec[g_phaseNUM] + green_sec + s_yellow_sec[g_phaseNUM] + yellow_sec + s_allred_sec[g_phaseNUM])) {
+//
+//            // lightColor_img.setImageResource(yello);
+//            timer__yellow = (s_green_sec[g_phaseNUM] + green_sec + s_yellow_sec[g_phaseNUM] + yellow_sec + s_allred_sec[g_phaseNUM]) - g_timeLength;
+//            d("黃燈秒數 ", "" + yellow_sec);
+//            d("倒數 ", "" + timer__yellow);
+//            d("s_green_sec ", "" + s_green_sec[g_phaseNUM]);
+//            d("s_yellow_sec ", "" + s_yellow_sec[g_phaseNUM]);
+//            d("s_allred_sec ", "" + s_allred_sec[g_phaseNUM]);
+//
+//            countStatus[4] = timer__yellow; //使用[3]表第一次運行要用不一樣的秒數
+//            countStatusIndex = 4;
+//            count(countStatus[countStatusIndex]);
+//
+//        } else if ((s_green_sec[g_phaseNUM] + green_sec + s_yellow_sec[g_phaseNUM] + yellow_sec + s_allred_sec[g_phaseNUM]) <= g_timeLength) {
+//
+//            // lightColor_img.setImageResource(red);
+//            // timer_red = cycle - g_timeLength;
+//
+//            g_timeLength = g_timeLength - (s_green_sec[g_phaseNUM] + green_sec + s_yellow_sec[g_phaseNUM] + yellow_sec + s_allred_sec[g_phaseNUM]);
+//            timer_red = red_sec - g_timeLength;
+//
+//            d("紅燈秒數 ", "" + red_sec);
+//            d("倒數 ", "" + timer_red);
+//            d("s_green_sec ", "" + s_green_sec[g_phaseNUM]);
+//            d("s_yellow_sec ", "" + s_yellow_sec[g_phaseNUM]);
+//            d("s_allred_sec ", "" + s_allred_sec[g_phaseNUM]);
+//
+//            countStatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
+//            countStatusIndex = 5;
+//            count(countStatus[countStatusIndex]);
+//        }
+//
+//        /*SetText
+//        CleanSetText();
+//        G2.setText(String.valueOf(green_sec));
+//        Y2.setText(" "+String.valueOf(yellow_sec));
+//        AR2.setText(" "+String.valueOf(allred_sec));
+//        R2.setText(" "+String.valueOf(red_sec));
+//        TIMELENGTH.setText(" "+String.valueOf(g_timeLength));*/
+//
+//    }
+//
+//    //特殊:phase 1 早開的分相
+//    public void calTime_earlyOPEN_first (int g_timeLength, int g_phaseNUM) {
+//
+//        if (g_timeLength < (green_sec + s_green_sec[g_phaseNUM])) {
+//
+//            //  lightColor_img.setImageResource(green);
+//
+//            timer_green = green_sec + s_green_sec[g_phaseNUM] - g_timeLength;
+//
+//            countStatus[3] = timer_green; //使用[3]表第一次運行要用不一樣的秒數
+//            countStatusIndex = 3;
+//
+//            Log.e("phase 1 早開的分相", "");
+//            Log.d("綠燈秒數 ", "green_sec" + green_sec + "s_green_sec" + s_green_sec[g_phaseNUM]);
+//            d("倒數 ", "" + timer_green);
+//
+//            d("countStatusIndex", "" + countStatusIndex);
+//            d("countStatus", "" + countStatus[countStatusIndex]);
+//            count(countStatus[countStatusIndex]);
+//
+//
+//        } else if ((green_sec + s_green_sec[g_phaseNUM]) <= g_timeLength && g_timeLength < (green_sec + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM])) {
+//
+//            //  lightColor_img.setImageResource(yello);
+//            timer__yellow = (green_sec + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]) - g_timeLength;
+//
+//            countStatus[4] = timer__yellow; //使用[3]表第一次運行要用不一樣的秒數
+//            countStatusIndex = 4;
+//
+//            Log.e("phase 1 早開的分相", "");
+//            d("黃燈秒數 ", "" + yellow_sec);
+//            d("倒數 ", "" + timer__yellow);
+//            d("countStatusIndex", "" + countStatusIndex);
+//            d("countStatus", "" + countStatus[countStatusIndex]);
+//
+//            count(countStatus[countStatusIndex]);
+//
+//
+//        } else if ((green_sec + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]) <= g_timeLength) {
+//
+//            //  lightColor_img.setImageResource(red);
+//            timer_red = cycle - g_timeLength;
+//
+//            Log.e("phase 1 早開的分相", "");
+//            d("紅燈秒數 ", "" + red_sec);
+//            d("倒數 ", "" + timer_red);
+//
+//            countStatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
+//            countStatusIndex = 5;
+//            count(countStatus[countStatusIndex]);
+//        }
+//    }
+//
+//    //特殊:phase 1 遲閉
+//    public void calTime_lateCLOSE_first (int g_timeLength, int g_phaseNUM) { //g_phaseNUM 要參照的
+//
+//        if (g_timeLength < (green_sec + yellow_sec + s_green_sec[g_phaseNUM])) {
+//
+//            timer_green = (green_sec + yellow_sec + s_green_sec[g_phaseNUM]) - g_timeLength;
+//
+//            countStatus[3] = timer_green; //使用[3]表第一次運行要用不一樣的秒數
+//            countStatusIndex = 3;
+//
+//            d("綠燈秒數 ", "" + green_sec);
+//            d("倒數 ", "" + timer_green);
+//
+//            d("countStatusIndex", "" + countStatusIndex);
+//            d("countStatus", "" + countStatus[countStatusIndex]);
+//            count(countStatus[countStatusIndex]);
+//
+//
+//        } else if ((green_sec + yellow_sec + s_green_sec[g_phaseNUM]) <= g_timeLength && g_timeLength < (green_sec + yellow_sec + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM])) {
+//
+//            lightColor_img.setImageResource(yello);
+//            timer__yellow = (green_sec + yellow_sec + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]) - g_timeLength;
+//
+//            countStatus[4] = timer__yellow; //使用[3]表第一次運行要用不一樣的秒數
+//            countStatusIndex = 4;
+//
+//            d("黃燈秒數 ", "" + yellow_sec);
+//            d("倒數 ", "" + timer__yellow);
+//            d("countStatusIndex", "" + countStatusIndex);
+//            d("countStatus", "" + countStatus[countStatusIndex]);
+//
+//            count(countStatus[countStatusIndex]);
+//
+//
+//        } else if ((green_sec + yellow_sec + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]) <= g_timeLength) {
+//
+//            lightColor_img.setImageResource(red);
+//            timer_red = cycle - g_timeLength;
+//            d("紅燈秒數 ", "" + red_sec);
+//            d("倒數 ", "" + timer_red);
+//
+//            countStatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
+//            countStatusIndex = 5;
+//            count(countStatus[countStatusIndex]);
+//        }
+//    }
+//
+//    //特殊:中間的phase  遲閉
+//    public void calTime_lateCLOSE_middle (int g_timeLength, int g_phaseNUM) {
+//
+//        if (g_timeLength < s_green_sec[0] ) {
+//
+//            //    lightColor_img.setImageResource(red);
+//            timer_red = s_green_sec[0] - g_timeLength;
+//            d("倒數 ", "" + timer_red);
+//
+//
+//            countStatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
+//            countStatusIndex = 5;
+//            count(countStatus[countStatusIndex]);
+//
+//
+//        } else if (s_green_sec[0] <= g_timeLength && g_timeLength < (s_green_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM] + green_sec)) {
+//
+//            //     lightColor_img.setImageResource(green);
+//            timer_green = (s_green_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM] + green_sec) - g_timeLength;
+//            d("綠燈秒數 ", "" + green_sec);
+//            d("倒數 ", "" + timer_green);
+//            d("s_green_sec ", "" + s_green_sec[g_phaseNUM]);
+//            d("s_yellow_sec ", "" + s_yellow_sec[g_phaseNUM]);
+//            d("s_allred_sec ", "" + s_allred_sec[g_phaseNUM]);
+//
+//            countStatus[3] = timer_green; //使用[3]表第一次運行要用不一樣的秒數
+//            countStatusIndex = 3;
+//            count(countStatus[countStatusIndex]);
+//
+//
+//        } else if ((s_green_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM] + green_sec) <= g_timeLength && g_timeLength < (s_green_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM] + green_sec + yellow_sec)) {
+//
+//            //   lightColor_img.setImageResource(yello);
+//            timer__yellow = (s_green_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM] + green_sec + yellow_sec) - g_timeLength;
+//            //  Log.d("黃燈秒數 ", "" + yellow_sec);
+//            d("倒數 ", "" + timer__yellow);
+//            d("s_green_sec ", "" + s_green_sec[g_phaseNUM]);
+//            d("s_yellow_sec ", "" + s_yellow_sec[g_phaseNUM]);
+//            d("s_allred_sec ", "" + s_allred_sec[g_phaseNUM]);
+//
+//            countStatus[4] = timer__yellow; //使用[3]表第一次運行要用不一樣的秒數
+//            countStatusIndex = 4;
+//            count(countStatus[countStatusIndex]);
+//
+//        } else if ((s_green_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM] + green_sec + yellow_sec) <= g_timeLength) {
+//
+//            //     lightColor_img.setImageResource(red);
+//            timer_red = cycle - g_timeLength;
+//            d("紅燈秒數 ", "" + red_sec);
+//            d("倒數 ", "" + timer_red);
+//            d("s_green_sec ", "" + s_green_sec[g_phaseNUM]);
+//            d("s_yellow_sec ", "" + s_yellow_sec[g_phaseNUM]);
+//            d("s_allred_sec ", "" + s_allred_sec[g_phaseNUM]);
+//
+//            countStatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
+//            countStatusIndex = 5;
+//            count(countStatus[countStatusIndex]);
+//        }
+//    }
+//
+//    //特殊:中間的phase  早開
+//    public void calTime_earlyOPEN_middle (int g_timeLength, int g_phaseNUM) {
+//
+//        if (g_timeLength < red_sec ) {
+//
+//            lightColor_img.setImageResource(red);
+//            timer_red = red_sec - g_timeLength;
+//            d("倒數 ", "" + timer_red);
+//
+//
+//            countStatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
+//            countStatusIndex = 5;
+//            count(countStatus[countStatusIndex]);
+//
+//
+//        } else if (red_sec <= g_timeLength && g_timeLength < (red_sec+ s_green_sec[g_phaseNUM] + green_sec + yellow_sec)) {
+//
+//            lightColor_img.setImageResource(green);
+//            timer_green = (red_sec+ s_green_sec[g_phaseNUM] + green_sec + yellow_sec) - g_timeLength;
+//            d("綠燈秒數 ", "" + green_sec);
+//            d("倒數 ", "" + timer_green);
+//
+//            countStatus[3] = timer_green; //使用[3]表第一次運行要用不一樣的秒數
+//            countStatusIndex = 3;
+//            count(countStatus[countStatusIndex]);
+//
+//
+//        } else if ((red_sec+ s_green_sec[g_phaseNUM] + green_sec + yellow_sec) <= g_timeLength) {
+//
+//            lightColor_img.setImageResource(yello);
+//            timer__yellow = cycle - g_timeLength;
+//            //  Log.d("黃燈秒數 ", "" + yellow_sec);
+//            d("倒數 ", "" + timer__yellow);
+//            d("s_green_sec ", "" + s_green_sec[g_phaseNUM]);
+//            d("s_yellow_sec ", "" + s_yellow_sec[g_phaseNUM]);
+//            d("s_allred_sec ", "" + s_allred_sec[g_phaseNUM]);
+//
+//            countStatus[4] = timer__yellow; //使用[3]表第一次運行要用不一樣的秒數
+//            countStatusIndex = 4;
+//            count(countStatus[countStatusIndex]);
+//        }
+//    }
+//
+//    //正常:第三個分相
+//    public void calTime_middle_3 (int g_timeLength, int g_phaseNUM) {
+//
+//        if (g_timeLength < (s_green_sec[0] + s_yellow_sec[0] + s_allred_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]+s_allred_sec[g_phaseNUM])) {
+//
+//            //       lightColor_img.setImageResource(red);
+//            timer_red = (s_green_sec[0] + s_yellow_sec[0] + s_allred_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]+s_allred_sec[g_phaseNUM]) - g_timeLength;
+//            d("特殊紅燈秒數 ", "" + (s_green_sec[0] + s_yellow_sec[0] + s_allred_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]+s_allred_sec[g_phaseNUM]));
+//            d("倒數 ", "" + timer_red);
+//
+//            countStatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
+//            countStatusIndex = 5;
+//            count(countStatus[countStatusIndex]);
+//
+//        } else if ((s_green_sec[0] + s_yellow_sec[0] + s_allred_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]+s_allred_sec[g_phaseNUM]) <= g_timeLength && g_timeLength < (s_green_sec[0] + s_yellow_sec[0] + s_allred_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]+s_allred_sec[g_phaseNUM] + green_sec)) {
+//
+//            //     lightColor_img.setImageResource(green);
+//            timer_green = (s_green_sec[0] + s_yellow_sec[0] + s_allred_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]+s_allred_sec[g_phaseNUM] + green_sec) - g_timeLength;
+//            d("特殊綠燈秒數 ", "" + green_sec);
+//            d("倒數 ", "" + timer_green);
+//
+//            countStatus[3] = timer_green; //使用[3]表第一次運行要用不一樣的秒數
+//            countStatusIndex = 3;
+//            count(countStatus[countStatusIndex]);
+//
+//
+//        } else if ((s_green_sec[0] + s_yellow_sec[0] + s_allred_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]+s_allred_sec[g_phaseNUM] + green_sec) <= g_timeLength && g_timeLength < (s_green_sec[0] + s_yellow_sec[0] + s_allred_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]+s_allred_sec[g_phaseNUM] + green_sec + yellow_sec)) {
+//
+//            //     lightColor_img.setImageResource(yello);
+//            timer__yellow = (s_green_sec[0] + s_yellow_sec[0] + s_allred_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]+s_allred_sec[g_phaseNUM] + green_sec + yellow_sec) - g_timeLength;
+//            d("黃燈秒數 ", "" + yellow_sec);
+//            d("倒數 ", "" + timer__yellow);
+//
+//            countStatus[4] = timer__yellow; //使用[3]表第一次運行要用不一樣的秒數
+//            countStatusIndex = 4;
+//            count(countStatus[countStatusIndex]);
+//
+//        } else if ((s_green_sec[0] + s_yellow_sec[0] + s_allred_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]+s_allred_sec[g_phaseNUM] + green_sec + yellow_sec ) <= g_timeLength) {
+//
+//            //     lightColor_img.setImageResource(red);
+//            g_timeLength = g_timeLength - (s_green_sec[0] + s_yellow_sec[0] + s_allred_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]+s_allred_sec[g_phaseNUM] + green_sec + yellow_sec);
+//            timer_red = red_sec - g_timeLength;
+//            //     timer_red = cycle - g_timeLength;
+//            d("紅燈秒數 ", "" + red_sec);
+//            d("倒數 ", "" + timer_red);
+//
+//            countStatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
+//            countStatusIndex = 5;
+//            count(countStatus[countStatusIndex]);
+//        }
+//
+//        /*SetText*/
+//
+//    }
+//
+//    //正常:最後一個分相
+//    public void calTime_Last(int g_timeLength) {
+//        if (g_timeLength < (red_sec - allred_sec)) {
+//
+//            //        lightColor_img.setImageResource(red);
+//            timer_red = red_sec - allred_sec - g_timeLength;
+//            d("紅燈秒數 ", "" + red_sec);
+//            d("倒數 ", "" + timer_red);
+//
+//            countStatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
+//            countStatusIndex = 5;
+//            count(countStatus[countStatusIndex]);
+//
+//        } else if ((red_sec - allred_sec) <= g_timeLength && g_timeLength < ((red_sec - allred_sec) + green_sec)) {
+//
+//            //      lightColor_img.setImageResource(green);
+//            timer_green = ((red_sec - allred_sec) + green_sec) - g_timeLength;
+//            d("綠燈秒數 ", "" + green_sec);
+//            d("倒數 ", "" + timer_green);
+//
+//            countStatus[3] = timer_green; //使用[3]表第一次運行要用不一樣的秒數
+//            countStatusIndex = 3;
+//            count(countStatus[countStatusIndex]);
+//
+//
+//        } else if ( ((red_sec - allred_sec) + green_sec) <= g_timeLength && g_timeLength < ((red_sec - allred_sec) + green_sec + yellow_sec)) {
+//
+//            //      lightColor_img.setImageResource(yello);
+//            timer__yellow = ((red_sec - allred_sec) + green_sec + yellow_sec) - g_timeLength;
+//            d("黃燈秒數 ", "" + yellow_sec);
+//            d("倒數 ", "" + timer__yellow);
+//
+//            countStatus[4] = timer__yellow; //使用[3]表第一次運行要用不一樣的秒數
+//            countStatusIndex = 4;
+//            count(countStatus[countStatusIndex]);
+//
+//        } else if ( ((red_sec - allred_sec) + green_sec + yellow_sec) <= g_timeLength ) {
+//            g_timeLength = g_timeLength - ((red_sec - allred_sec) + green_sec + yellow_sec);
+//            timer_red = red_sec - g_timeLength;
+//
+//            //        lightColor_img.setImageResource(red);
+//            countStatus[5] = timer_red;
+//            countStatusIndex = 5;
+//            count(countStatus[countStatusIndex]);
+//        }
+//
+//        /*SetText
+//        CleanSetText();
+//        G4.setText(String.valueOf(green_sec));
+//        Y4.setText(" "+String.valueOf(yellow_sec));
+//        AR4.setText(" "+String.valueOf(allred_sec));
+//        R4.setText(" "+String.valueOf(red_sec));
+//        TIMELENGTH.setText(" "+String.valueOf(g_timeLength));*/
+//
+//    }
+//
+//    //特殊:最後一個分相遲閉
+//    public void calTime_Last_lateCLOSE(int g_timeLength) {
+//        if (g_timeLength < s_green_sec[0] + s_green_sec[1] + s_yellow_sec[1] ) {
+//
+//            //      lightColor_img.setImageResource(red);
+//            timer_red = s_green_sec[0] + s_green_sec[1] + s_yellow_sec[1] - g_timeLength;
+//            d("紅燈秒數 ", "" + red_sec);
+//            d("倒數 ", "" + timer_red);
+//
+//            countStatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
+//            countStatusIndex = 5;
+//            count(countStatus[countStatusIndex]);
+//
+//        } else if (s_green_sec[0] + s_green_sec[1] + s_yellow_sec[1] <= g_timeLength && g_timeLength < (s_green_sec[0] + s_green_sec[1] + s_yellow_sec[1] + s_green_sec[2] + s_yellow_sec[2] + green_sec)) {
+//
+//            //      lightColor_img.setImageResource(green);
+//            timer_green = (s_green_sec[0] + s_green_sec[1] + s_yellow_sec[1] + s_green_sec[2] + s_yellow_sec[2] + green_sec) - g_timeLength;
+//            d("綠燈秒數 ", "" + green_sec);
+//            d("倒數 ", "" + timer_green);
+//
+//            countStatus[3] = timer_green; //使用[3]表第一次運行要用不一樣的秒數
+//            countStatusIndex = 3;
+//            count(countStatus[countStatusIndex]);
+//
+//
+//        } else if ((s_green_sec[0] + s_green_sec[1] + s_yellow_sec[1] + s_green_sec[2] + s_yellow_sec[2] + green_sec)  <= g_timeLength) {
+//
+//            //     lightColor_img.setImageResource(yello);
+//            timer__yellow = cycle - g_timeLength;
+//            d("黃燈秒數 ", "" + yellow_sec);
+//            d("倒數 ", "" + timer__yellow);
+//
+//            countStatus[4] = timer__yellow; //使用[3]表第一次運行要用不一樣的秒數
+//            countStatusIndex = 4;
+//            count(countStatus[countStatusIndex]);
+//
+//        }
+//    }
+//
+//    public void get_phase_theard() { //當時相數量 >= 3 需要其他分相資訊
+//
+//        Thread get_p1_threadd = new Thread() {
+//            public void run() {
+//                List<NameValuePair> s_params = new ArrayList<NameValuePair>();
+//                s_params.add(new BasicNameValuePair("ICID", ICID));
+//                s_params.add(new BasicNameValuePair("planID", planID));
+//                //  s_params.add(new BasicNameValuePair("phaseID", g_phase));
+//
+//                JSONObject json = jParser.makeHttpRequest(url_S_getLightData, "GET", s_params);
+//
+//                try {
+//                    // Checking for SUCCESS TAG
+//                    final int success = json.getInt(TAG_SUCCESS);
+//                    //   d("SUCCESS xxxxxx", "" + success);
+//
+//                    if (success == 1) {
+//
+//                        getPhase = json.getJSONArray(TAG_PRODUCTS);
+//                        Log.e("getPhaseLength", "" + getPhase.length());
+//
+//                        for (i=0;i < 6 ; i++) { //先把陣列裡的都洗掉
+//                            s_green_sec[i] = 0;
+//                            s_allred_sec[i] = 0;
+//                            s_yellow_sec[i] = 0;
+//                        }
+//
+//                        for (i = 0; i < getPhase.length(); i++) {
+//                            JSONObject s = getPhase.getJSONObject(i);
+//                            // Storing each json item in variable
+//                            d("phaseLength",""+getPhase.length());
+//                            s_green_sec[i] = s.getInt(TAG_greentime);
+//                            d("s_GREEN ", "num "+ i + "time " + s.getInt(TAG_greentime));
+//                            s_yellow_sec[i] = s.getInt(TAG_YELLOW);
+//                            d("s_yellow ", "num "+ i+"time " + s.getInt(TAG_YELLOW));
+//                            s_allred_sec[i] = s.getInt(TAG_ALLRED);
+//                            d("s_ALLred ", "num "+ i+"time " + s.getInt(TAG_ALLRED));
+//                        }
+//
+//
+//                    } else {
+//                        runOnUiThread(new Runnable() {
+//                            @Override
+//                            public void run() {
+//                                Toast.makeText(MainActivity.this, "錯誤碼" + success, Toast.LENGTH_LONG).show();
+//                            }
+//                        });
+//                    }
+//                } catch (JSONException e) {
+//
+//                }
+//            }
+//        };
+//
+//        get_p1_threadd.start();
+//
+//        try {
+//            get_p1_threadd.join();
+//        } catch (InterruptedException e) {
+//            e.printStackTrace();
+//        }
+//    }
+//
+//    public void getTimeLength() {
+//
+//        Calendar c = Calendar.getInstance();
+//        hour = c.get(Calendar.HOUR_OF_DAY);
+//        min = c.get(Calendar.MINUTE);
+//        sec = c.get(Calendar.SECOND);
+//
+//        timeLength = (((hour * 3600) + (min * 60) + sec) - ((startHour * 3600) + (startMin * 60))) - offset;
+//        timeLength = timeLength % cycle;
+//
+//        /*SetText
+//        HOUR.setText(String.valueOf(hour));
+//        MIN.setText(" "+ String.valueOf(min));
+//        SEC.setText(" "+ String.valueOf(sec));
+//        TIMELENGTH.setText(" "+String.valueOf(timeLength));*/
+//
+//    }
+
+/*
     class LoadAllProducts extends AsyncTask<String, String, String> {
 
         protected String doInBackground(String... args) {
@@ -1165,7 +1243,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
                         red_sec = cycle - green_sec - yellow_sec; //換算紅燈時間
 
 
-                        /*SetText*/
+
 
 
 
@@ -1342,19 +1420,13 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
             return null;
         }
 
-        /**
-         * After completing background task Dismiss the progress dialog
-         * **/
-        /*
-        protected void onPostExecute(String file_url) {
-
-            runOnUiThread(new Runnable() {
-                public void run() {
-
-                }
-            });
-
-        } */
 
     }
+
+
+*/
+
+
 }
+
+

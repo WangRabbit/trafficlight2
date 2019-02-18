@@ -1,12 +1,17 @@
 package android.trafficlight2.ecoDriving;
 
 import android.content.Context;
+import android.content.Intent;
 import android.trafficlight2.JSONParser;
+import android.trafficlight2.MainActivity;
+import android.trafficlight2.R;
 import android.util.Log;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import org.apache.http.NameValuePair;
 import org.apache.http.message.BasicNameValuePair;
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -14,37 +19,52 @@ import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
 
+import static android.support.v4.content.ContextCompat.startActivity;
+import static android.trafficlight2.R.drawable.no_light;
 import static android.util.Log.d;
 import static android.util.Log.e;
 
-public class RSU  {
+public class RSU extends MainActivity implements LoadSignalInformationResult<String[]>{
 
-    private String deviceID;
+    //RSU基本資訊
+    public boolean RSU_status;
+    public boolean getInformationStatus;
+
+
+    //RSU號誌資料
+    private String deviceID,ICID,icName;
     private String phaseID,planID;
     private int green_sec, yellow_sec, allred_sec,red_sec,cycle;
-    private int segment,offset,direction,phaseCount;
+    private int segment,offset,phaseCount;
     private String phaseOrder;
 
-    private int timeLength;
-    private int timer_green;
-    private int timer__yellow;
-    private int timer_red;
+    //計算倒數秒數用(暫時不移至子類別trafficSignalCountDown)
     private int countStatusIndex;
+    private int[] countStatus = {0,0,0,0,0,0};
+
+
 
     // Creating JSON Parser object
     JSONParser jParser = new JSONParser();
     // url to get all products list
 
+    private TrafficSignalCountDown tscd = new TrafficSignalCountDown();
+
     private static String url_S_getLightData = "http://140.116.97.98/traffic_light/get_S_newLightData.php"; //192.168.0.100
 
     private Calendar calendar = Calendar.getInstance();
-    private int[] countStatus = {0,0,0,0,0,0};
+
 
     private int startHour,startMin;
+
+    //紀錄時間分段
+    int[][] timeArray = {{0, 1, 6, 7, 8, 8, 11, 12, 13, 16, 17, 18, 21, 22, 23},
+            {0, 0, 0, 0, 15, 45, 45, 30, 15, 00, 00, 45, 00, 15, 00}};
 
     private Context context;
 
     public RSU(Context context) {
+
         this.context = context;
     }
 
@@ -52,8 +72,20 @@ public class RSU  {
         Toast.makeText(context, str, Toast.LENGTH_SHORT).show();
     }
 
+    public int getCountStatusIndex() {
+        return this.countStatusIndex; //返回給予UI顯示秒數
+    }
+
+    public int[] getCountStatus() {
+        return this.countStatus; //返回給予UI顯示秒數
+    }
+
     public void setDeviceID(String mDeviceID) {
         this.deviceID = mDeviceID;
+    }
+
+    public void setICID(String mICID) {
+        this.ICID = mICID;
     }
 
     public void setPhaseID(String mPhaseID) {
@@ -95,9 +127,6 @@ public class RSU  {
         this.offset = mOffset;
     }
 
-    public void setDirection(int mDirection) {
-        this.direction = mDirection;
-    }
 
     public void setPhaseCount(int mPhaseCount) {
         this.phaseCount = mPhaseCount;
@@ -107,9 +136,95 @@ public class RSU  {
         this.phaseOrder = mPhaseOrder;
     }
 
+    public void start(String ICID,String inputDirection,int segment,int weekday) {
+        this.segment = segment;
+
+        LoadSignalInformation ld = new LoadSignalInformation();
+        ld.loadSignalInformationResult = this;
+        ld.execute(ICID,inputDirection,String.valueOf(segment),String.valueOf(weekday));
 
 
-    class TrafficSignalCountDown {
+
+    }
+
+    @Override
+    public void signalResult(String[] planResult ) {
+
+        this.getInformationStatus = true;
+        Log.d("9999",""+this.getInformationStatus);
+
+        if (planResult[14].equals("OK")) {
+
+            System.out.println("OK");
+            Toast.makeText(context, "OK",Toast.LENGTH_LONG).show();
+
+            this.deviceID = planResult[0];
+            this.ICID = planResult[1];
+            this.icName = planResult[2];
+            this.phaseID = planResult[3];
+            this.green_sec = Integer.valueOf(planResult[4]);
+            this.yellow_sec = Integer.valueOf(planResult[5]);
+            this.allred_sec = Integer.valueOf(planResult[6]);
+            this.red_sec = Integer.valueOf(planResult[13]);
+            this.cycle = Integer.valueOf(planResult[7]);
+            this.planID = planResult[8];
+            this.offset = Integer.valueOf(planResult[9]);
+          //  this.direction = planResult[10];
+            this.phaseCount = Integer.valueOf(planResult[11]);
+            this.phaseOrder = planResult[12];
+
+            tscd.start();
+
+        } else if (planResult[14].equals("Fail")) {
+
+            System.out.println("Fail");
+            Toast.makeText(context, "代號"+ICID+",方向"+planResult[16]+"錯誤碼:"+ planResult[15],Toast.LENGTH_LONG).show();
+
+            RSU_status = false;
+
+        } else {
+            System.out.println("Exception");
+            Toast.makeText(context, "發生例外事件 ICID = "+ ICID +"方向 = "+ planResult[16] , Toast.LENGTH_LONG).show();
+
+            RSU_status = false;
+        }
+
+        startHour = timeArray[0][segment - 1];
+        startMin = timeArray[1][segment - 1];
+
+        countStatus[0] = this.green_sec;
+        countStatus[1] = this.yellow_sec;
+        countStatus[2] = this.red_sec;
+        Log.d("countStatus[0]",""+ countStatus[0]);
+        Log.d("countStatus[1]",""+ countStatus[1]);
+        Log.d("countStatus[2]",""+ countStatus[2]);
+
+
+    }
+
+
+
+
+    public class TrafficSignalCountDown {
+
+        public RSUstatus status;
+
+        //計算倒數秒數用
+        private int timeLength;
+        private int timer_green;
+        private int timer__yellow;
+        private int timer_red;
+        int[] s_green_sec = {0,0,0,0,0,0}; //最多6個分相
+        int[] s_yellow_sec = {0,0,0,0,0,0};
+        int[] s_allred_sec = {0,0,0,0,0,0};
+
+        JSONArray getPhase = null;
+        private static final String TAG_SUCCESS = "success";
+        private static final String TAG_PRODUCTS = "product";
+        private static final String TAG_YELLOW = "yellow";
+        private static final String TAG_ALLRED = "allred";
+        private static final String TAG_greentime = "greentime";
+
 
         public void calTimeLength() {
 
@@ -123,7 +238,6 @@ public class RSU  {
             timeLength = timeLength % cycle;
         }
 
-
         //正常:第一分相
         private void calTime_First () {
 
@@ -134,7 +248,9 @@ public class RSU  {
                 countStatus[3] = timer_green; //使用[3]表第一次運行要用不一樣的秒數
                 countStatusIndex = 3;
 
-                count(countStatus[countStatusIndex]);
+                //// count(countStatus[countStatusIndex]);
+
+
 
             } else if (green_sec <= timeLength && timeLength < (yellow_sec + green_sec)) {
 
@@ -143,7 +259,7 @@ public class RSU  {
                 countStatus[4] = timer__yellow; //使用[4]表第一次運行要用不一樣的秒數
                 countStatusIndex = 4;
 
-                count(countStatus[countStatusIndex]);
+               // // count(countStatus[countStatusIndex]);
 
             } else if ((green_sec + yellow_sec) <= timeLength) {
 
@@ -152,10 +268,9 @@ public class RSU  {
                 countStatus[5] = timer_red; //使用[5]表第一次運行要用不一樣的秒數
                 countStatusIndex = 5;
 
-                count(countStatus[countStatusIndex]);
-            }
+               // // count(countStatus[countStatusIndex]);
 
-            //SetText
+            }
 
 
         }
@@ -174,7 +289,7 @@ public class RSU  {
 
                 countStatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
                 countStatusIndex = 5;
-                count(countStatus[countStatusIndex]);
+                //// count(countStatus[countStatusIndex]);
 
 
             } else if ((s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM] + s_allred_sec[g_phaseNUM]) <= timeLength && timeLength < (s_green_sec[g_phaseNUM] + green_sec + s_yellow_sec[g_phaseNUM] + s_allred_sec[g_phaseNUM])) {
@@ -189,7 +304,7 @@ public class RSU  {
 
                 countStatus[3] = timer_green; //使用[3]表第一次運行要用不一樣的秒數
                 countStatusIndex = 3;
-                count(countStatus[countStatusIndex]);
+                //// count(countStatus[countStatusIndex]);
 
 
             } else if ((s_green_sec[g_phaseNUM] + green_sec + s_yellow_sec[g_phaseNUM]+ s_allred_sec[g_phaseNUM]) <= timeLength && timeLength < (s_green_sec[g_phaseNUM] + green_sec + s_yellow_sec[g_phaseNUM] + yellow_sec + s_allred_sec[g_phaseNUM])) {
@@ -203,7 +318,7 @@ public class RSU  {
 
                 countStatus[4] = timer__yellow; //使用[3]表第一次運行要用不一樣的秒數
                 countStatusIndex = 4;
-                count(countStatus[countStatusIndex]);
+               // // count(countStatus[countStatusIndex]);
 
             } else if ((s_green_sec[g_phaseNUM] + green_sec + s_yellow_sec[g_phaseNUM] + yellow_sec + s_allred_sec[g_phaseNUM]) <= timeLength) {
 
@@ -220,7 +335,7 @@ public class RSU  {
 
                 countStatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
                 countStatusIndex = 5;
-                count(countStatus[countStatusIndex]);
+                //// count(countStatus[countStatusIndex]);
             }
 
 
@@ -243,7 +358,7 @@ public class RSU  {
 
                 d("countStatusIndex", "" + countStatusIndex);
                 d("countStatus", "" + countStatus[countStatusIndex]);
-                count(countStatus[countStatusIndex]);
+                //// count(countStatus[countStatusIndex]);
 
 
             } else if ((green_sec + s_green_sec[g_phaseNUM]) <= timeLength && timeLength < (green_sec + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM])) {
@@ -259,7 +374,7 @@ public class RSU  {
                 d("countStatusIndex", "" + countStatusIndex);
                 d("countStatus", "" + countStatus[countStatusIndex]);
 
-                count(countStatus[countStatusIndex]);
+                //// count(countStatus[countStatusIndex]);
 
 
             } else if ((green_sec + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]) <= timeLength) {
@@ -272,7 +387,7 @@ public class RSU  {
 
                 countStatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
                 countStatusIndex = 5;
-                count(countStatus[countStatusIndex]);
+                //// count(countStatus[countStatusIndex]);
             }
         }
 
@@ -291,7 +406,7 @@ public class RSU  {
 
                 d("countStatusIndex", "" + countStatusIndex);
                 d("countStatus", "" + countStatus[countStatusIndex]);
-                count(countStatus[countStatusIndex]);
+                //// count(countStatus[countStatusIndex]);
 
 
             } else if ((green_sec + yellow_sec + s_green_sec[g_phaseNUM]) <= timeLength && timeLength < (green_sec + yellow_sec + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM])) {
@@ -306,7 +421,7 @@ public class RSU  {
                 d("countStatusIndex", "" + countStatusIndex);
                 d("countStatus", "" + countStatus[countStatusIndex]);
 
-                count(countStatus[countStatusIndex]);
+                //// count(countStatus[countStatusIndex]);
 
 
             } else if ((green_sec + yellow_sec + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]) <= timeLength) {
@@ -317,7 +432,7 @@ public class RSU  {
 
                 countStatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
                 countStatusIndex = 5;
-                count(countStatus[countStatusIndex]);
+                //// count(countStatus[countStatusIndex]);
             }
         }
 
@@ -332,7 +447,7 @@ public class RSU  {
 
                 countStatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
                 countStatusIndex = 5;
-                count(countStatus[countStatusIndex]);
+                //// count(countStatus[countStatusIndex]);
 
 
             } else if (s_green_sec[0] <= timeLength && timeLength < (s_green_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM] + green_sec)) {
@@ -346,7 +461,7 @@ public class RSU  {
 
                 countStatus[3] = timer_green; //使用[3]表第一次運行要用不一樣的秒數
                 countStatusIndex = 3;
-                count(countStatus[countStatusIndex]);
+                //// count(countStatus[countStatusIndex]);
 
 
             } else if ((s_green_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM] + green_sec) <= timeLength && timeLength < (s_green_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM] + green_sec + yellow_sec)) {
@@ -360,7 +475,7 @@ public class RSU  {
 
                 countStatus[4] = timer__yellow; //使用[3]表第一次運行要用不一樣的秒數
                 countStatusIndex = 4;
-                count(countStatus[countStatusIndex]);
+                //// count(countStatus[countStatusIndex]);
 
             } else if ((s_green_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM] + green_sec + yellow_sec) <= timeLength) {
 
@@ -373,7 +488,7 @@ public class RSU  {
 
                 countStatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
                 countStatusIndex = 5;
-                count(countStatus[countStatusIndex]);
+                //// count(countStatus[countStatusIndex]);
             }
         }
 
@@ -388,7 +503,7 @@ public class RSU  {
 
                 countStatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
                 countStatusIndex = 5;
-                count(countStatus[countStatusIndex]);
+                //// count(countStatus[countStatusIndex]);
 
 
             } else if (red_sec <= timeLength && timeLength < (red_sec+ s_green_sec[g_phaseNUM] + green_sec + yellow_sec)) {
@@ -399,7 +514,7 @@ public class RSU  {
 
                 countStatus[3] = timer_green; //使用[3]表第一次運行要用不一樣的秒數
                 countStatusIndex = 3;
-                count(countStatus[countStatusIndex]);
+                //// count(countStatus[countStatusIndex]);
 
 
             } else if ((red_sec+ s_green_sec[g_phaseNUM] + green_sec + yellow_sec) <= timeLength) {
@@ -413,7 +528,7 @@ public class RSU  {
 
                 countStatus[4] = timer__yellow; //使用[3]表第一次運行要用不一樣的秒數
                 countStatusIndex = 4;
-                count(countStatus[countStatusIndex]);
+                //// count(countStatus[countStatusIndex]);
             }
         }
 
@@ -428,7 +543,7 @@ public class RSU  {
 
                 countStatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
                 countStatusIndex = 5;
-                count(countStatus[countStatusIndex]);
+                //// count(countStatus[countStatusIndex]);
 
             } else if ((s_green_sec[0] + s_yellow_sec[0] + s_allred_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]+s_allred_sec[g_phaseNUM]) <= timeLength && timeLength < (s_green_sec[0] + s_yellow_sec[0] + s_allred_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]+s_allred_sec[g_phaseNUM] + green_sec)) {
 
@@ -438,7 +553,7 @@ public class RSU  {
 
                 countStatus[3] = timer_green; //使用[3]表第一次運行要用不一樣的秒數
                 countStatusIndex = 3;
-                count(countStatus[countStatusIndex]);
+                // count(countStatus[countStatusIndex]);
 
 
             } else if ((s_green_sec[0] + s_yellow_sec[0] + s_allred_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]+s_allred_sec[g_phaseNUM] + green_sec) <= timeLength && timeLength < (s_green_sec[0] + s_yellow_sec[0] + s_allred_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]+s_allred_sec[g_phaseNUM] + green_sec + yellow_sec)) {
@@ -449,7 +564,7 @@ public class RSU  {
 
                 countStatus[4] = timer__yellow; //使用[3]表第一次運行要用不一樣的秒數
                 countStatusIndex = 4;
-                count(countStatus[countStatusIndex]);
+                //// count(countStatus[countStatusIndex]);
 
             } else if ((s_green_sec[0] + s_yellow_sec[0] + s_allred_sec[0] + s_green_sec[g_phaseNUM] + s_yellow_sec[g_phaseNUM]+s_allred_sec[g_phaseNUM] + green_sec + yellow_sec ) <= timeLength) {
 
@@ -461,7 +576,7 @@ public class RSU  {
 
                 countStatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
                 countStatusIndex = 5;
-                count(countStatus[countStatusIndex]);
+                //// count(countStatus[countStatusIndex]);
             }
 
 
@@ -477,7 +592,7 @@ public class RSU  {
 
                 countStatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
                 countStatusIndex = 5;
-                count(countStatus[countStatusIndex]);
+               // // count(countStatus[countStatusIndex]);
 
             } else if ((red_sec - allred_sec) <= timeLength && timeLength < ((red_sec - allred_sec) + green_sec)) {
 
@@ -487,7 +602,7 @@ public class RSU  {
 
                 countStatus[3] = timer_green; //使用[3]表第一次運行要用不一樣的秒數
                 countStatusIndex = 3;
-                count(countStatus[countStatusIndex]);
+               // // count(countStatus[countStatusIndex]);
 
 
             } else if ( ((red_sec - allred_sec) + green_sec) <= timeLength && timeLength < ((red_sec - allred_sec) + green_sec + yellow_sec)) {
@@ -498,7 +613,7 @@ public class RSU  {
 
                 countStatus[4] = timer__yellow; //使用[3]表第一次運行要用不一樣的秒數
                 countStatusIndex = 4;
-                count(countStatus[countStatusIndex]);
+                // count(countStatus[countStatusIndex]);
 
             } else if ( ((red_sec - allred_sec) + green_sec + yellow_sec) <= timeLength ) {
                 timeLength = timeLength - ((red_sec - allred_sec) + green_sec + yellow_sec);
@@ -506,7 +621,7 @@ public class RSU  {
 
                 countStatus[5] = timer_red;
                 countStatusIndex = 5;
-                count(countStatus[countStatusIndex]);
+              //  // count(countStatus[countStatusIndex]);
             }
 
 
@@ -524,7 +639,7 @@ public class RSU  {
 
                 countStatus[5] = timer_red; //使用[3]表第一次運行要用不一樣的秒數
                 countStatusIndex = 5;
-                count(countStatus[countStatusIndex]);
+                // count(countStatus[countStatusIndex]);
 
             } else if (s_green_sec[0] + s_green_sec[1] + s_yellow_sec[1] <= timeLength && timeLength < (s_green_sec[0] + s_green_sec[1] + s_yellow_sec[1] + s_green_sec[2] + s_yellow_sec[2] + green_sec)) {
 
@@ -534,7 +649,7 @@ public class RSU  {
 
                 countStatus[3] = timer_green; //使用[3]表第一次運行要用不一樣的秒數
                 countStatusIndex = 3;
-                count(countStatus[countStatusIndex]);
+                // count(countStatus[countStatusIndex]);
 
 
             } else if ((s_green_sec[0] + s_green_sec[1] + s_yellow_sec[1] + s_green_sec[2] + s_yellow_sec[2] + green_sec)  <= timeLength) {
@@ -545,13 +660,14 @@ public class RSU  {
 
                 countStatus[4] = timer__yellow; //使用[3]表第一次運行要用不一樣的秒數
                 countStatusIndex = 4;
-                count(countStatus[countStatusIndex]);
+                // count(countStatus[countStatusIndex]);
 
             }
         }
 
 
         public void get_phase_theard() { //當時相數量 >= 3 需要其他分相資訊
+
 
             Thread get_p1_threadd = new Thread() {
                 public void run() {
@@ -561,6 +677,8 @@ public class RSU  {
                     //  s_params.add(new BasicNameValuePair("phaseID", g_phase));
 
                     JSONObject json = jParser.makeHttpRequest(url_S_getLightData, "GET", s_params);
+
+                    int i ;
 
                     try {
                         // Checking for SUCCESS TAG
@@ -592,14 +710,11 @@ public class RSU  {
 
 
                         } else {
-                            runOnUiThread(new Runnable() {
-                                @Override
-                                public void run() {
-                                    showToast("123123");
-                                }
-                            });
+                            System.out.print("12121212");
+
                         }
                     } catch (JSONException e) {
+                        System.out.print("exception");
 
                     }
                 }
@@ -615,12 +730,17 @@ public class RSU  {
         }
 
 
-
         public void start() {
+
+
+            Log.e("tsdc start","tsdc start");
+            Log.e("cycle",String.valueOf(cycle));
+            Log.e("phaseOrder ",String.valueOf(phaseOrder));
+
             if (cycle != 0 && !phaseOrder.equals("B0") && !phaseOrder.equals("b0")) { //先確認CYCLE不是0 或 閃光時相(b0)
 
-                d("startHour ", "" + startHour); //依照startHour和startMin開始計算
-                d("startMin ", "" + startMin); //依照startHour和startMin開始計算
+                RSU_status = true; //表示號誌可用
+                Log.e("RSU status ",String.valueOf(RSU_status));
 
                 switch(phaseCount) {
                     case 2: //二分相情況
@@ -638,9 +758,8 @@ public class RSU  {
                 }
 
             } else {
-                count(111111);
-                countdown_txt.setText("閃光");
-                threadFlag = 0;
+                RSU_status = false; //表示不可用
+
             }
 
         }
@@ -651,11 +770,16 @@ public class RSU  {
                 case 1:
                     calTimeLength();
                     calTime_First();
+
                     break;
 
                 case 2:
                     calTimeLength();
                     calTime_Last();
+
+                   this.status.showSignal();
+
+
                     break;
             }
         }
@@ -763,9 +887,9 @@ public class RSU  {
             }
         }
 
-        public int gettimeLength() {
-            return timeLength;
-        }
+
+
+
     }
 
 }

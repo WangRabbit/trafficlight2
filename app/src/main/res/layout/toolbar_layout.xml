@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<android.support.v7.widget.Toolbar xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="#CCDDFF"
+    android:elevation="4dp"
+    android:theme="@style/toolBarTheme"
+
+    android:visibility="visible"
+    app:logo="@mipmap/ic_launcher"
+    app:popupTheme="@style/ThemeOverlay.AppCompat.Dark"
+    app:subtitle="@string/app_name"
+    app:title="節能駕駛建議 v1.0"
+
+    app:titleTextColor="@android:color/black">
+
+</android.support.v7.widget.Toolbar>

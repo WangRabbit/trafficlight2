@@ -60,7 +60,7 @@ public class LoadSignalInformation extends AsyncTask<String, Integer, String[]> 
 
     protected String[] doInBackground(String... args) { //傳入參數
 
-        String[] planResult = new String[16];
+        String[] planResult = new String[17];
         int i;
         int red_sec,cycle,green_sec,yellow_sec;
 
@@ -70,6 +70,7 @@ public class LoadSignalInformation extends AsyncTask<String, Integer, String[]> 
         params.add(new BasicNameValuePair("direction", args[1])); //現在是傳方向代號
         params.add(new BasicNameValuePair("segment", args[2]));
         params.add(new BasicNameValuePair("weekday", args[3]));
+        planResult[16] = args[1];
 
         JSONObject json = jParser.makeHttpRequest(url_getLightData, "GET", params);
 
@@ -139,6 +140,7 @@ public class LoadSignalInformation extends AsyncTask<String, Integer, String[]> 
         return planResult;
 
     }
+
 
 
     protected void onPostExecute(String[] result) {

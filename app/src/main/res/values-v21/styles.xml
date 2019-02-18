@@ -1,0 +1,9 @@
+<resources>
+    <style name="toolBarTheme" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="android:textColorPrimary">@android:color/white</item>
+        <item name="android:textColorSecondary">@android:color/holo_green_light</item>
+        <item name="android:colorPrimary">@android:color/holo_green_dark</item>
+        <item name="android:windowBackground">@android:color/background_dark</item>
+    </style>
+
+</resources>
